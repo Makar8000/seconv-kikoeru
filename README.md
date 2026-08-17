@@ -21,7 +21,8 @@ These are basic configurations sent to seconv. For more information on each opti
 - `SECONV_PATH` - The path to the `seconv` executable. Leave this empty if you have SubtitleEdit installed or if `seconv` is already in your PATH.
 - `TRANSLATE_ENGINE` - The engine to use for the translation. See official documentation for possible options. Defaults to `llamacpp`. The server must already be running prior to executing this application.
 - `TRANSLATE_MODEL` - The model to use for the translation. If not provided, it will use the first available model.
-- `TRANSLATE_URL` - The url of the translation server. The server must already be running prior to executing this application.
+- `TRANSLATE_URL` - The url of the translation server. If provided, the server must already be running prior to executing this application.
+  - Tip: If you are using `llamacpp` engine and you already have a working llama.cpp install, you can leave this field empty and `seconv` will automatically start & stop a server for you.
 - `TRANSLATE_FROM` - The language to translate from. Defaults to auto-detect per file.
 - `TRANSLATE_TO` - The language to translate to. Defaults to English.
 - `SECONV_ADDITIONAL_ARGS` - For advanced use, you can provide any additional arguments you'd like to pass to the `seconv` process here (comma-seperated). This can be useful if you want to use your own settings, profile, dictionary/replacements, system prompt, etc. See the official documentation for more information on the possible options.
@@ -42,4 +43,4 @@ This project requires [deno](https://deno.com/) to run.
 
 ### Tasks
 - `deno task translate` - The main task. Translates lyrics/subtitles as specified in this README.
-- `deno task restore-backups` - (Comming Soon) will restore any files in the `bak` subfolders. Afterwards, the backups will be deleted.
+- `deno task restore-backups` - (Coming Soon) will restore any files in the `bak` subfolders. Afterwards, the backups will be deleted.

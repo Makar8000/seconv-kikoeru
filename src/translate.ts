@@ -7,7 +7,7 @@ const RJ_PATH = Deno.env.get("RJ_PATH") ?? "./queue";
 const SECONV_PATH = Deno.env.get("SECONV_PATH");
 const TRANSLATE_ENGINE = Deno.env.get("TRANSLATE_ENGINE") ?? "llamacpp";
 const TRANSLATE_MODEL = Deno.env.get("TRANSLATE_MODEL") ?? "";
-const TRANSLATE_URL = Deno.env.get("TRANSLATE_URL") ?? "http://127.0.0.1:8080/";
+const TRANSLATE_URL = Deno.env.get("TRANSLATE_URL") ?? "";
 const TRANSLATE_FROM = Deno.env.get("TRANSLATE_FROM") ?? "";
 const TRANSLATE_TO = Deno.env.get("TRANSLATE_TO") ?? "en";
 const SECONV_ADDITIONAL_ARGS = Deno.env.get("SECONV_ADDITIONAL_ARGS")?.split(",") ?? [];
@@ -18,8 +18,6 @@ const translateWithSeConv = async (filesGlob: string, format: string): Promise<b
     filesGlob,
     "--translate-engine",
     TRANSLATE_ENGINE,
-    "--translate-url",
-    TRANSLATE_URL,
     "--translate-to",
     TRANSLATE_TO,
     "--overwrite",
@@ -27,6 +25,10 @@ const translateWithSeConv = async (filesGlob: string, format: string): Promise<b
 
   if (!SECONV_ADDITIONAL_ARGS.includes("--format")) {
     args.push(...["--format", format]);
+  }
+
+  if (TRANSLATE_URL.length) {
+    args.push(...["--translate-url", TRANSLATE_URL]);
   }
 
   if (TRANSLATE_MODEL.length) {
