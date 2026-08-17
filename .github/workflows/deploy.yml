@@ -1,0 +1,52 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: windows-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install Dependencies
+        run: "deno install"
+
+      - name: Compile Executable
+        run: "deno task compile"
+
+      - name: Create Artifact
+        run: |
+          mkdir release
+          mkdir artifact
+          mkdir artifact/queue
+          New-Item artifact\queue\.place-files-to-translate-here
+          Move-Item -Path .env.example -Destination artifact\.env
+          Move-Item -Path translate.exe -Destination artifact\translate.exe
+          Compress-Archive -Path artifact\* -DestinationPath release\seconv-kikoeru.zip -Force
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seconv-kikoeru
+          path: artifact/
+          include-hidden-files: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: release/seconv-kikoeru.zip
+          name: ${{ steps.define-version.outputs.commit }}
+          prerelease: false

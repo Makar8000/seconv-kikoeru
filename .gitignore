@@ -1,0 +1,12 @@
+node_modules
+vendor
+.vscode
+.env
+data
+artifact
+release
+bin
+*.exe
+
+queue/**
+!queue/**/.gitkeep

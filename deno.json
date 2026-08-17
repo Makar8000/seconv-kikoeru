@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "tasks": {
+    "translate": "deno run -EWR --allow-run src/translate.ts",
+    "compile": "deno compile -EWR --allow-run src/translate.ts"
+  },
+  "fmt": {
+    "lineWidth": 150,
+    "include": [
+      "src/"
+    ]
+  },
+  "vendor": true,
+  "imports": {
+    "@std/dotenv": "jsr:@std/dotenv@^0.225.8",
+    "@std/fs": "jsr:@std/fs@^1.0.24",
+    "@std/path": "jsr:@std/path@^1.1.6"
+  }
+}
