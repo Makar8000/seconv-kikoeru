@@ -10,7 +10,8 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 4) Ensure the server for the translation engine specified in the config (ex. llama.cpp) is running
 5) Place the files you want to translate in the `queue` folder (or whatever folder you set in the `.env` file)
 6) Run `translate.exe`
-7) Files will be translated in-place. Backups will be placed in a `bak` subfolder
+
+Files will be translated in-place. Backups will be placed in a `bak` subfolder
 
 ## Configuration
 To adjust the configuration, you will need to create a `.env` file in the same directory by creating a copy of the `.env.example` file.
@@ -38,3 +39,7 @@ This project requires [deno](https://deno.com/) to run.
    - See [Configuration](#configuration) for more details on the `.env` file
 4) Place your files/folders with untranslated subtitles in your `RJ_PATH` (queue) folder
 5) `deno task translate`
+
+### Tasks
+- `deno task translate` - The main task. Translates lyrics/subtitles as specified in this README.
+- `deno task restore-backups` - (Comming Soon) will restore any files in the `bak` subfolders. Afterwards, the backups will be deleted.
