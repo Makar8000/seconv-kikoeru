@@ -29,6 +29,7 @@ These are basic configurations sent to seconv. For more information on each opti
 
 ### seconv-kikoeru config
 - `RJ_PATH` - The location of the folder that contains all of your lyric/subtitle files that need to be translated. This path will be searched recursively. Defaults to `./queue` in the same directory if not provided.
+- `ERRORS_FILE` - The location the json file where translation errors will be saved or loaded.
 - `SUBTITLE_EXTENSIONS` - A comma-seperated list of file extensions to parse. Defaults to `lrc,srt,vtt`.
 
 ## Running from source

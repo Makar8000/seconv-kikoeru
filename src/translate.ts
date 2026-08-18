@@ -1,7 +1,7 @@
 import "@std/dotenv/load";
 import * as fs from "@std/fs";
 import * as path from "@std/path";
-import { logger } from "./common.ts";
+import { loadFailedTranslations, logger } from "./common.ts";
 
 const RJ_PATH = Deno.env.get("RJ_PATH") ?? "./queue";
 const SECONV_PATH = Deno.env.get("SECONV_PATH");
@@ -12,6 +12,9 @@ const TRANSLATE_FROM = Deno.env.get("TRANSLATE_FROM") ?? "";
 const TRANSLATE_TO = Deno.env.get("TRANSLATE_TO") ?? "en";
 const SECONV_ADDITIONAL_ARGS = Deno.env.get("SECONV_ADDITIONAL_ARGS")?.split(",") ?? [];
 const SUBTITLE_EXTENSIONS = Deno.env.get("SUBTITLE_EXTENSIONS")?.split(",") ?? ["lrc", "srt", "vtt"];
+const ERRORS_FILE = Deno.env.get("ERRORS_FILE") ?? "./data/tlerrors.json";
+
+const failedTranslations = loadFailedTranslations(ERRORS_FILE);
 
 const translateWithSeConv = async (filesGlob: string, format: string): Promise<boolean> => {
   const args: string[] = [
@@ -52,6 +55,7 @@ const translateWithSeConv = async (filesGlob: string, format: string): Promise<b
 
   if (!status.success) {
     logger.error(`Failed to translate file. seconv process exited with code ${status.code}: ${status.signal}`);
+    writeFailedTranslations(filesGlob, format);
   }
 
   return status.success;
@@ -84,6 +88,19 @@ const backupFile = (file: string) => {
   Deno.copyFileSync(file, bakFilePath);
 };
 
+const writeFailedTranslations = (filesGlob: string, ext: string) => {
+  failedTranslations.push({ filesGlob, ext });
+
+  // Ensure the folder exists
+  const tlErrorsFolder = path.dirname(ERRORS_FILE);
+  if (!fs.existsSync(tlErrorsFolder)) {
+    Deno.mkdirSync(tlErrorsFolder, { recursive: true });
+  }
+
+  // Write file
+  Deno.writeTextFileSync(ERRORS_FILE, JSON.stringify(failedTranslations, null, 2));
+};
+
 const main = async () => {
   // Find list of subtitle files
   const data = Array.from(fs.expandGlobSync(`**/*.{${SUBTITLE_EXTENSIONS.join(",")}}`, {
@@ -107,9 +124,13 @@ const main = async () => {
     return acc;
   }, {} as { [key: string]: Array<string> });
 
+  // Keep track of any new failed translations
+  const oldFailedCount = failedTranslations.length;
+
   logger.info(`Found ${Object.keys(data).length} folder entries.`);
   for (const [rjcode, files] of Object.entries(data)) {
     logger.info(`\nParsing ${rjcode}...`);
+    // Translate all files in folder
     try {
       await translateFiles(files);
       logger.info(`Completed ${rjcode}`);
@@ -117,6 +138,12 @@ const main = async () => {
       logger.error(e);
       continue;
     }
+  }
+
+  // If any translations failed, log the new ones
+  if (failedTranslations.length > oldFailedCount) {
+    const failedList = failedTranslations.slice(oldFailedCount);
+    logger.error(`\nSome translations failed. List of failed files:\n${failedList.map((file) => file.filesGlob).join("\n")}`);
   }
 
   alert("\nFinished processing all files. Press Enter to close...");
