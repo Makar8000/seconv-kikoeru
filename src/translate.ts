@@ -24,6 +24,7 @@ const translateWithSeConv = async (filesGlob: string, format: string): Promise<b
     "--translate-to",
     TRANSLATE_TO,
     "--overwrite",
+    "--no-language-suffix",
   ];
 
   if (!SECONV_ADDITIONAL_ARGS.includes("--format")) {
