@@ -1,22 +1,21 @@
 import * as fs from "@std/fs";
 import * as path from "@std/path";
 import { config } from "../config/index.ts";
-import { TRANSLATED_FOLDER } from "./fileDiscovery.ts";
+import { BACKUPS_FOLDER, METADATA_FOLDER } from "./fileDiscovery.ts";
 import { logger } from "./logger.ts";
 import { loadManifest, removeByFile, saveManifest, type TranslatedEntry, type TranslationErrorEntry, upsertByFile } from "./manifest.ts";
 import { translateWithSeConv } from "./seconv.ts";
 
-const BACKUPS_FOLDER = "backups";
 const MANIFEST_FILENAME = "manifest.json";
 
 /**
- * Backs up a single file into `<rjFolder>/.translated/backups/<relative-path>`, mirroring the RJ
+ * Backs up a single file into `<backup-folder>/<relative-path>`, mirroring the RJ
  * folder's structure. Skips the copy (and logs a notice) if a backup already exists for that file,
  * so the original pre-translation content is never overwritten by a later run.
  */
 const backupFile = (rjFolder: string, relativeFile: string) => {
   const relativeToRj = path.relative(rjFolder, path.join(config.rjPath, relativeFile));
-  const bakFilePath = path.join(rjFolder, TRANSLATED_FOLDER, BACKUPS_FOLDER, relativeToRj);
+  const bakFilePath = path.join(rjFolder, METADATA_FOLDER, BACKUPS_FOLDER, relativeToRj);
 
   if (fs.existsSync(bakFilePath)) {
     logger.info(`Backup already exists for ${relativeFile}, skipping`);
@@ -44,7 +43,7 @@ const backupFile = (rjFolder: string, relativeFile: string) => {
  */
 export const translateFiles = async (rjcode: string, files: string[]): Promise<TranslationErrorEntry[]> => {
   const rjFolder = path.join(config.rjPath, rjcode);
-  const manifestPath = path.join(rjFolder, TRANSLATED_FOLDER, MANIFEST_FILENAME);
+  const manifestPath = path.join(rjFolder, METADATA_FOLDER, MANIFEST_FILENAME);
   const manifest = loadManifest(manifestPath);
   const translatedFiles = new Set(manifest.translated.map((e) => e.file));
 
@@ -61,7 +60,7 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
   const runErrors: TranslationErrorEntry[] = [];
 
   try {
-    // Create a backup of each file, mirroring the RJ folder structure under `.translated/backups`
+    // Create a backup of each file, mirroring the RJ folder structure
     for (const file of pendingFiles) {
       backupFile(rjFolder, file);
     }

@@ -2,7 +2,9 @@
   "version": "1.0.0",
   "tasks": {
     "translate": "deno run -EWR --allow-run src/translate.ts",
-    "compile": "deno compile -EWR --allow-run src/translate.ts"
+    "restore-backups": "deno run -EWR src/restore-backups.ts",
+    "compile": "deno compile -EWR --allow-run src/translate.ts",
+    "compile-restore": "deno compile -EWR src/restore-backups.ts"
   },
   "fmt": {
     "lineWidth": 150,
