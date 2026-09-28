@@ -27,7 +27,7 @@ export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
     return !walkEntry.path.split(path.SEPARATOR_PATTERN).includes(METADATA_FOLDER);
   }).map((walkEntry) => {
     // Determine the RJ code of a file
-    const filePath = walkEntry.path.substring(rjPathAbs.length + 1);
+    const filePath = path.relative(rjPathAbs, walkEntry.path);
     return {
       rjcode: filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath),
       filePath,

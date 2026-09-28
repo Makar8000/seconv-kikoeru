@@ -34,10 +34,8 @@ const backupFile = (rjFolder: string, relativeFile: string) => {
  * Translates the given `files` (paths relative to `config.rjPath`) belonging to a single RJ
  * folder, skipping any already recorded as translated in that folder's manifest.
  *
- * Pending files are backed up, then batched by extension and parent folder into `seconv` calls.
- * On success, each file in a batch is recorded/updated in the manifest's `translated` list (and
- * removed from `errors` if present); on failure, each file in the batch is recorded/updated in
- * `errors` instead. The manifest is persisted even if an error is thrown partway through.
+ * Pending files are backed up, then grouped by extension and translated.
+ * Each file's success/error result from `seconv` is recorded/updated in the manifest.
  *
  * Returns the list of error entries produced during this call (for run-level reporting).
  */
@@ -47,8 +45,11 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
   const manifest = loadManifest(manifestPath);
   const translatedFiles = new Set(manifest.translated.map((e) => e.file));
 
+  // Converts a file path string to be relative to the rjfolder
+  const toRjFolderRelative = (file: string) => path.relative(rjFolder, path.join(config.rjPath, file));
+
   // Skip any files that have already been successfully translated in a previous run
-  const pendingFiles = files.filter((file) => !translatedFiles.has(file));
+  const pendingFiles = files.filter((file) => !translatedFiles.has(toRjFolderRelative(file)));
   if (pendingFiles.length !== files.length) {
     logger.info(`Skipping ${files.length - pendingFiles.length} already-translated file(s)`);
   }
@@ -67,47 +68,46 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
 
     // Run the seconv batch process, grouped by file extension and parent folder
     for (const ext of config.subtitleExtensions) {
-      const filesWithExt = pendingFiles.filter((file) => path.extname(file).substring(1).toLowerCase() === ext.toLowerCase());
-      if (!filesWithExt.length) {
+      const batchFiles = pendingFiles.filter((file) => path.extname(file).substring(1).toLowerCase() === ext.toLowerCase());
+      if (!batchFiles.length) {
         continue;
       }
 
-      const globsByFolder = new Map<string, string[]>();
-      filesWithExt.forEach((file) => {
-        const glob = path.join(path.dirname(path.join(config.rjPath, file)), `*.${ext}`);
-        globsByFolder.set(glob, [...(globsByFolder.get(glob) ?? []), file]);
-      });
+      const filePaths = batchFiles.map((file) => path.join(config.rjPath, file));
+      const results = await translateWithSeConv(filePaths, ext);
+      const timestamp = new Date().toISOString();
 
-      for (const [filesGlob, batchFiles] of globsByFolder) {
-        const result = await translateWithSeConv(filesGlob, ext);
-        const timestamp = new Date().toISOString();
+      for (let i = 0; i < batchFiles.length; i++) {
+        const file = batchFiles[i];
+        // results are keyed by absolute path, matching how seconv reports them back
+        const result = results.get(path.resolve(filePaths[i]));
+        // manifest entries are keyed by path relative to `rjFolder`, not `config.rjPath`
+        const manifestFile = toRjFolderRelative(file);
 
-        for (const file of batchFiles) {
-          if (result.success) {
-            upsertByFile<TranslatedEntry>(manifest.translated, {
-              file,
-              timestamp,
-              translateEngine: config.translateEngine,
-              translateModel: config.translateModel,
-              translateFrom: config.translateFrom,
-              translateTo: config.translateTo,
-              additionalArgs: config.seconvAdditionalArgs,
-            });
-            removeByFile(manifest.errors, file);
-          } else {
-            const errorEntry: TranslationErrorEntry = {
-              file,
-              timestamp,
-              translateEngine: config.translateEngine,
-              translateModel: config.translateModel,
-              translateFrom: config.translateFrom,
-              translateTo: config.translateTo,
-              additionalArgs: config.seconvAdditionalArgs,
-              error: result.error ?? "Unknown error",
-            };
-            upsertByFile(manifest.errors, errorEntry);
-            runErrors.push(errorEntry);
-          }
+        if (result?.success) {
+          upsertByFile<TranslatedEntry>(manifest.translated, {
+            file: manifestFile,
+            timestamp,
+            translateEngine: config.translateEngine,
+            translateModel: config.translateModel,
+            translateFrom: config.translateFrom,
+            translateTo: config.translateTo,
+            additionalArgs: config.seconvAdditionalArgs,
+          });
+          removeByFile(manifest.errors, manifestFile);
+        } else {
+          const errorEntry: TranslationErrorEntry = {
+            file: manifestFile,
+            timestamp,
+            translateEngine: config.translateEngine,
+            translateModel: config.translateModel,
+            translateFrom: config.translateFrom,
+            translateTo: config.translateTo,
+            additionalArgs: config.seconvAdditionalArgs,
+            error: result?.error ?? "Unknown error (seconv did not report a result for this file)",
+          };
+          upsertByFile(manifest.errors, errorEntry);
+          runErrors.push(errorEntry);
         }
       }
     }
