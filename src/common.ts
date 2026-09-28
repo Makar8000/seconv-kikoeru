@@ -19,6 +19,24 @@ export const logger = {
   error: (...args: any[]) => console.error(COLORS.ERROR, ...args),
 };
 
+export function getEnv(name: string, defaultValue: string): string;
+export function getEnv(name: string, defaultValue: string[]): string[];
+export function getEnv(name: string, defaultValue: string | string[]): string | string[] {
+  const raw = Deno.env.get(name);
+  const hasValue = raw !== undefined && raw.trim().length > 0;
+
+  if (Array.isArray(defaultValue)) {
+    if (!hasValue) {
+      return defaultValue;
+    }
+
+    const list = raw!.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    return list.length ? list : defaultValue;
+  }
+
+  return hasValue ? raw! : defaultValue;
+}
+
 export const loadFailedTranslations = (path: string): TranslationResult[] => {
   if (!fs.existsSync(path)) {
     return [];

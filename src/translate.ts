@@ -1,18 +1,18 @@
 import "@std/dotenv/load";
 import * as fs from "@std/fs";
 import * as path from "@std/path";
-import { loadFailedTranslations, logger } from "./common.ts";
+import { getEnv, loadFailedTranslations, logger } from "./common.ts";
 
-const RJ_PATH = Deno.env.get("RJ_PATH") ?? "./queue";
-const SECONV_PATH = Deno.env.get("SECONV_PATH");
-const TRANSLATE_ENGINE = Deno.env.get("TRANSLATE_ENGINE") ?? "llamacpp";
-const TRANSLATE_MODEL = Deno.env.get("TRANSLATE_MODEL") ?? "";
-const TRANSLATE_URL = Deno.env.get("TRANSLATE_URL") ?? "";
-const TRANSLATE_FROM = Deno.env.get("TRANSLATE_FROM") ?? "";
-const TRANSLATE_TO = Deno.env.get("TRANSLATE_TO") ?? "en";
-const SECONV_ADDITIONAL_ARGS = Deno.env.get("SECONV_ADDITIONAL_ARGS")?.split(",") ?? [];
-const SUBTITLE_EXTENSIONS = Deno.env.get("SUBTITLE_EXTENSIONS")?.split(",") ?? ["lrc", "srt", "vtt"];
-const ERRORS_FILE = Deno.env.get("ERRORS_FILE") ?? "./data/tlerrors.json";
+const RJ_PATH = getEnv("RJ_PATH", "./queue");
+const SECONV_PATH = getEnv("SECONV_PATH", "seconv");
+const TRANSLATE_ENGINE = getEnv("TRANSLATE_ENGINE", "llamacpp");
+const TRANSLATE_MODEL = getEnv("TRANSLATE_MODEL", "");
+const TRANSLATE_URL = getEnv("TRANSLATE_URL", "");
+const TRANSLATE_FROM = getEnv("TRANSLATE_FROM", "");
+const TRANSLATE_TO = getEnv("TRANSLATE_TO", "en");
+const SECONV_ADDITIONAL_ARGS = getEnv("SECONV_ADDITIONAL_ARGS", []);
+const SUBTITLE_EXTENSIONS = getEnv("SUBTITLE_EXTENSIONS", ["lrc", "srt", "vtt"]);
+const ERRORS_FILE = getEnv("ERRORS_FILE", "./data/tlerrors.json");
 
 const failedTranslations = loadFailedTranslations(ERRORS_FILE);
 
@@ -47,7 +47,7 @@ const translateWithSeConv = async (filesGlob: string, format: string): Promise<b
     args.push(...SECONV_ADDITIONAL_ARGS);
   }
 
-  const command = new Deno.Command(SECONV_PATH!, {
+  const command = new Deno.Command(SECONV_PATH, {
     args,
     stdout: "inherit",
   });
@@ -71,7 +71,7 @@ const translateFiles = async (files: string[]): Promise<void> => {
   // Run the seconv batch process, grouped by file extension and parent folder
   for (const ext of SUBTITLE_EXTENSIONS) {
     const filesWithExt = new Set<string>();
-    files.filter((file) => path.extname(file).substring(1) === ext)
+    files.filter((file) => path.extname(file).substring(1).toLowerCase() === ext.toLowerCase())
       .forEach((file) => filesWithExt.add(path.join(path.dirname(path.join(RJ_PATH, file)), `*.${ext}`)));
     for (const filesGlob of filesWithExt) {
       await translateWithSeConv(filesGlob, ext);
@@ -106,6 +106,7 @@ const main = async () => {
   // Find list of subtitle files
   const data = Array.from(fs.expandGlobSync(`**/*.{${SUBTITLE_EXTENSIONS.join(",")}}`, {
     root: RJ_PATH,
+    caseInsensitive: true,
   })).filter((walkEntry) => {
     // Exclude any existing backup files
     return path.basename(path.dirname(walkEntry.path)) !== "bak";
