@@ -1,140 +1,23 @@
 import "@std/dotenv/load";
-import * as fs from "@std/fs";
-import * as path from "@std/path";
-import { getEnv, loadFailedTranslations, logger } from "./common.ts";
-
-const RJ_PATH = getEnv("RJ_PATH", "./queue");
-const SECONV_PATH = getEnv("SECONV_PATH", "seconv");
-const TRANSLATE_ENGINE = getEnv("TRANSLATE_ENGINE", "llamacpp");
-const TRANSLATE_MODEL = getEnv("TRANSLATE_MODEL", "");
-const TRANSLATE_URL = getEnv("TRANSLATE_URL", "");
-const TRANSLATE_FROM = getEnv("TRANSLATE_FROM", "");
-const TRANSLATE_TO = getEnv("TRANSLATE_TO", "en");
-const SECONV_ADDITIONAL_ARGS = getEnv("SECONV_ADDITIONAL_ARGS", []);
-const SUBTITLE_EXTENSIONS = getEnv("SUBTITLE_EXTENSIONS", ["lrc", "srt", "vtt"]);
-const ERRORS_FILE = getEnv("ERRORS_FILE", "./data/tlerrors.json");
-
-const failedTranslations = loadFailedTranslations(ERRORS_FILE);
-
-const translateWithSeConv = async (filesGlob: string, format: string): Promise<boolean> => {
-  const args: string[] = [
-    filesGlob,
-    "--translate-engine",
-    TRANSLATE_ENGINE,
-    "--translate-to",
-    TRANSLATE_TO,
-    "--overwrite",
-    "--no-language-suffix",
-  ];
-
-  if (!SECONV_ADDITIONAL_ARGS.includes("--format")) {
-    args.push(...["--format", format]);
-  }
-
-  if (TRANSLATE_URL.length) {
-    args.push(...["--translate-url", TRANSLATE_URL]);
-  }
-
-  if (TRANSLATE_MODEL.length) {
-    args.push(...["--translate-model", TRANSLATE_MODEL]);
-  }
-
-  if (TRANSLATE_FROM.length) {
-    args.push(...["--translate-from", TRANSLATE_FROM]);
-  }
-
-  if (SECONV_ADDITIONAL_ARGS.length) {
-    args.push(...SECONV_ADDITIONAL_ARGS);
-  }
-
-  const command = new Deno.Command(SECONV_PATH, {
-    args,
-    stdout: "inherit",
-  });
-  const child = command.spawn();
-  const status = await child.status;
-
-  if (!status.success) {
-    logger.error(`Failed to translate file. seconv process exited with code ${status.code}: ${status.signal}`);
-    writeFailedTranslations(filesGlob, format);
-  }
-
-  return status.success;
-};
-
-const translateFiles = async (files: string[]): Promise<void> => {
-  // Create a backup of each file in a `bak` subfolder
-  for (const file of files) {
-    backupFile(path.join(RJ_PATH, file));
-  }
-
-  // Run the seconv batch process, grouped by file extension and parent folder
-  for (const ext of SUBTITLE_EXTENSIONS) {
-    const filesWithExt = new Set<string>();
-    files.filter((file) => path.extname(file).substring(1).toLowerCase() === ext.toLowerCase())
-      .forEach((file) => filesWithExt.add(path.join(path.dirname(path.join(RJ_PATH, file)), `*.${ext}`)));
-    for (const filesGlob of filesWithExt) {
-      await translateWithSeConv(filesGlob, ext);
-    }
-  }
-};
-
-const backupFile = (file: string) => {
-  logger.info(`Backing up ${file}`);
-  const bakFolder = path.join(path.dirname(file), "bak");
-  const bakFilePath = path.join(bakFolder, path.basename(file));
-  if (!fs.existsSync(bakFolder)) {
-    Deno.mkdirSync(bakFolder, { recursive: true });
-  }
-  Deno.copyFileSync(file, bakFilePath);
-};
-
-const writeFailedTranslations = (filesGlob: string, ext: string) => {
-  failedTranslations.push({ filesGlob, ext });
-
-  // Ensure the folder exists
-  const tlErrorsFolder = path.dirname(ERRORS_FILE);
-  if (!fs.existsSync(tlErrorsFolder)) {
-    Deno.mkdirSync(tlErrorsFolder, { recursive: true });
-  }
-
-  // Write file
-  Deno.writeTextFileSync(ERRORS_FILE, JSON.stringify(failedTranslations, null, 2));
-};
+import { findSubtitleFilesByRjCode } from "./utils/fileDiscovery.ts";
+import { logger } from "./utils/logger.ts";
+import type { TranslationErrorEntry } from "./utils/manifest.ts";
+import { translateFiles } from "./utils/translator.ts";
 
 const main = async () => {
-  // Find list of subtitle files
-  const data = Array.from(fs.expandGlobSync(`**/*.{${SUBTITLE_EXTENSIONS.join(",")}}`, {
-    root: RJ_PATH,
-    caseInsensitive: true,
-  })).filter((walkEntry) => {
-    // Exclude any existing backup files
-    return path.basename(path.dirname(walkEntry.path)) !== "bak";
-  }).map((walkEntry) => {
-    // Determine the RJ code of a file
-    const filePath = walkEntry.path.substring(path.resolve(RJ_PATH).length + 1);
-    return {
-      rjcode: filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath),
-      filePath,
-    };
-  }).reduce((acc, cur) => {
-    // Group files for the same RJ code together
-    if (!acc[cur.rjcode]) {
-      acc[cur.rjcode] = [];
-    }
-    acc[cur.rjcode].push(cur.filePath);
-    return acc;
-  }, {} as { [key: string]: Array<string> });
+  // Find and group all pending subtitle files by RJ code
+  const filesByRjCode = findSubtitleFilesByRjCode();
 
-  // Keep track of any new failed translations
-  const oldFailedCount = failedTranslations.length;
+  // Keep track of any failed translations across this run
+  const allErrors: { rjcode: string; error: TranslationErrorEntry }[] = [];
 
-  logger.info(`Found ${Object.keys(data).length} folder entries.`);
-  for (const [rjcode, files] of Object.entries(data)) {
+  logger.info(`Found ${Object.keys(filesByRjCode).length} folder entries.`);
+  for (const [rjcode, files] of Object.entries(filesByRjCode)) {
     logger.info(`\nParsing ${rjcode}...`);
-    // Translate all files in folder
+    // Translate all pending files in the folder
     try {
-      await translateFiles(files);
+      const errors = await translateFiles(rjcode, files);
+      allErrors.push(...errors.map((error) => ({ rjcode, error })));
       logger.info(`Completed ${rjcode}`);
     } catch (e) {
       logger.error(e);
@@ -142,10 +25,10 @@ const main = async () => {
     }
   }
 
-  // If any translations failed, log the new ones
-  if (failedTranslations.length > oldFailedCount) {
-    const failedList = failedTranslations.slice(oldFailedCount);
-    logger.error(`\nSome translations failed. List of failed files:\n${failedList.map((file) => file.filesGlob).join("\n")}`);
+  // If any translations failed, log them
+  if (allErrors.length) {
+    const failedList = allErrors.map(({ rjcode, error }) => `${rjcode}/${error.file}`).join("\n");
+    logger.error(`\nSome translations failed. List of failed files:\n${failedList}`);
   }
 
   alert("\nFinished processing all files. Press Enter to close...");

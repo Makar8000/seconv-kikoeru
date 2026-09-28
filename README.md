@@ -11,7 +11,7 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 5) Place the files you want to translate in the `queue` folder (or whatever folder you set in the `.env` file)
 6) Run `translate.exe`
 
-Files will be translated in-place. Backups will be placed in a `bak` subfolder
+Files will be translated in-place. Backups will be placed in a `.translated/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.translated/manifest.json` within each RJ folder; files that have already been successfully translated will be skipped on subsequent runs.
 
 ## Configuration
 To adjust the configuration, you will need to create a `.env` file in the same directory by creating a copy of the `.env.example` file.
@@ -29,7 +29,6 @@ These are basic configurations sent to seconv. For more information on each opti
 
 ### seconv-kikoeru config
 - `RJ_PATH` - The location of the folder that contains all of your lyric/subtitle files that need to be translated. This path will be searched recursively. Defaults to `./queue` in the same directory if not provided.
-- `ERRORS_FILE` - The location the json file where translation errors will be saved or loaded.
 - `SUBTITLE_EXTENSIONS` - A comma-seperated list of file extensions to parse. Defaults to `lrc,srt,vtt`.
 
 ## Running from source
@@ -44,4 +43,4 @@ This project requires [deno](https://deno.com/) to run.
 
 ### Tasks
 - `deno task translate` - The main task. Translates lyrics/subtitles as specified in this README.
-- `deno task restore-backups` - (Coming Soon) will restore any files in the `bak` subfolders. Afterwards, the backups will be deleted.
+- `deno task restore-backups` - (Coming Soon) will restore any files in the `.translated/backups` subfolders. Afterwards, the backups will be deleted.
