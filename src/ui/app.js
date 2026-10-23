@@ -145,12 +145,16 @@ const fillSelect = (select, options, current) => {
   select.value = current;
 };
 
+const fillLanguages = (languages, current) => {
+  const langs = languages.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` }));
+  fillSelect($("translateFrom"), [{ value: "", label: "Auto-detect" }, ...langs], current.translateFrom);
+  fillSelect($("translateTo"), langs, current.translateTo);
+};
+
 const fill = ({ config, engines: engineNames, languages, seconvFound }) => {
   setSeconvFound(seconvFound);
   fillSelect($("translateEngine"), engineNames.map((e) => ({ value: e, label: e })), config.translateEngine);
-  const langs = languages.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` }));
-  fillSelect($("translateFrom"), [{ value: "", label: "Auto-detect" }, ...langs], config.translateFrom);
-  fillSelect($("translateTo"), langs, config.translateTo);
+  fillLanguages(languages, config);
   inputs.filter((f) => f.tagName !== "SELECT" && !isEngine(f)).forEach((f) => f.value = config[f.dataset.key]);
   lists.filter((l) => !isEngine(l)).forEach((l) => renderList(l, config[l.dataset.list]));
   engines = structuredClone(config.engines);
@@ -187,6 +191,7 @@ $("installSeconv").addEventListener("click", async () => {
 $("stop").addEventListener("click", () => api("POST", "/api/stop").catch((e) => log("error", e.message)));
 
 let since = 0;
+let wasInstalling = false;
 const poll = async () => {
   try {
     const s = await api("GET", `/api/state?since=${since}`);
@@ -199,6 +204,11 @@ const poll = async () => {
     $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
     $("status").textContent = s.total ? `${s.done} / ${s.total}` : "";
     setSeconvFound(s.seconvFound);
+    // An install brings that seconv's language list; watched here so the menu's "Update seconv" is covered too
+    if (wasInstalling && !s.installing) {
+      api("GET", "/api/config").then((d) => fillLanguages(d.languages, read())).catch((e) => log("error", e.message));
+    }
+    wasInstalling = s.installing;
     const busy = s.running || s.installing || s.restoring;
     $("pill").textContent = s.running ? "Running" : s.installing ? "Downloading" : s.restoring ? "Restoring" : "Idle";
     $("pill").classList.toggle("running", s.running);

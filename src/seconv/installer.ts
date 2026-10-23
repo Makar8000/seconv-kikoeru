@@ -2,9 +2,13 @@ import { BlobReader, Uint8ArrayWriter, ZipReader } from "@zip-js/zip-js";
 import { UntarStream } from "@std/tar/untar-stream";
 import * as path from "@std/path";
 import { logger } from "../logger.ts";
-import { SECONV_BINARY, SECONV_LIB_DIR } from "./locate.ts";
+import { reloadLanguages } from "../config/index.ts";
+import { SECONV_BINARY, SECONV_LANGUAGES, SECONV_LIB_DIR } from "./locate.ts";
 
 const RELEASES_API = "https://api.github.com/repos/SubtitleEdit/subtitleedit/releases?per_page=30";
+/** The Subtitle Edit source file that defines the LLM engines' language list, at release `tag`. */
+const languagesSource = (tag: string) =>
+  `https://raw.githubusercontent.com/SubtitleEdit/subtitleedit/${tag}/src/libuilogic/AutoTranslate/ChatGptTranslate.cs`;
 
 type Release = { tag_name: string; prerelease: boolean; draft: boolean; assets: { name: string; browser_download_url: string; size: number }[] };
 
@@ -77,9 +81,36 @@ const extractTarGz = async (archive: string, dest: string) => {
 /** Extracts a downloaded `.zip` / `.tar.gz` seconv archive into `dest`. */
 export const extractArchive = (archive: string, dest: string) => archive.endsWith(".zip") ? extractZip(archive, dest) : extractTarGz(archive, dest);
 
+/** Pulls the `MakePair("English", "en")` entries out of Subtitle Edit's `ChatGptTranslate.cs`. */
+export const parseLanguages = (source: string) =>
+  [...source.matchAll(/MakePair\("([^"]+)",\s*"([^"]+)"\)/g)].map(([, name, code]) => ({ name, code }));
+
+/**
+ * Saves the language list of seconv `tag`, read from the Subtitle Edit source at that tag, and loads it.
+ * Not fatal: if it fails, the bundled list is used instead.
+ */
+const saveLanguages = async (tag: string) => {
+  try {
+    const res = await fetch(languagesSource(tag), { headers: { "user-agent": "seconv-kikoeru" } });
+    if (!res.ok) {
+      throw new Error(`GitHub returned ${res.status} ${res.statusText}`);
+    }
+    const languages = parseLanguages(await res.text());
+    if (!languages.length) {
+      throw new Error("No languages found in the source.");
+    }
+    await Deno.writeTextFile(SECONV_LANGUAGES, JSON.stringify(languages, null, 2));
+    logger.info(`Saved the language list of seconv ${tag} (${languages.length} languages).`);
+  } catch (e) {
+    logger.warn(`Couldn't get the language list of seconv ${tag}, using the built-in one. ${e}`);
+  }
+  reloadLanguages();
+};
+
 /**
  * Downloads the newest seconv pre-release for this OS/architecture and installs it into `lib/seconv/`,
- * replacing any previous copy. The new version is fully extracted and checked before the old one is touched.
+ * replacing any previous copy, along with its language list. The new version is fully extracted and checked
+ * before the old one is touched.
  */
 export const installSeconv = async (): Promise<string> => {
   const prefix = assetPrefix();
@@ -119,6 +150,7 @@ export const installSeconv = async (): Promise<string> => {
     await Deno.remove(SECONV_LIB_DIR, { recursive: true }).catch(() => {});
     await Deno.rename(staging, SECONV_LIB_DIR);
     logger.info(`Installed seconv ${tag} to ${SECONV_LIB_DIR}`);
+    await saveLanguages(tag);
     return tag;
   } finally {
     await Deno.remove(archive).catch(() => {});

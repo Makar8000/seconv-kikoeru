@@ -2,7 +2,7 @@
 A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [SeConv CLI](https://subtitleedit.github.io/subtitleedit/reference/command-line.html) tool that lets you batch-translate various lyric files. Originally created for use with Kikoeru but adjusted to work with any folder structure.
 
 ## Usage
-**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)). The app looks for it in `lib/seconv/` first, then in your PATH. If it isn't found, click **Download latest pre-release** in the app: it downloads the newest pre-release build for your OS/architecture (`SeConv-<OS>-<Arch>.zip` / `.tar.gz`) and extracts it to `lib/seconv/`. Both locations are relative to the folder you launch the app from (like `config.json`). Delete `lib/seconv/` to go back to the PATH version, or click the button again after deleting it to update.
+**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)). The app looks for it in `lib/seconv/` first, then in your PATH. If it isn't found, click **Download latest pre-release** in the app: it downloads the newest pre-release build for your OS/architecture (`SeConv-<OS>-<Arch>.zip` / `.tar.gz`) and extracts it to `lib/seconv/`, along with that version's list of translation languages for the language dropdowns. Both locations are relative to the folder you launch the app from (like `config.json`). Delete `lib/seconv/` to go back to the PATH version, or click the button again after deleting it to update.
 
 1) Download the latest release from [here](https://github.com/Makar8000/seconv-kikoeru/releases/latest) and extract it.
 2) Run `seconv-kikoeru`.
@@ -37,7 +37,7 @@ These are basic configurations sent to seconv. For more information on each opti
 - `subtitleExtensions` - The file extensions to parse. Defaults to `lrc`, `srt`, `vtt`.
 
 ## Menu
-- **Tools → Update seconv** - Downloads the latest pre-release of seconv into `lib/seconv/`.
+- **Tools → Update seconv** - Downloads the latest pre-release of seconv (and its language list) into `lib/seconv/`.
 - **Tools → Restore backups** - Restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
 
 Both are unavailable while a translation, download or restore is already running.

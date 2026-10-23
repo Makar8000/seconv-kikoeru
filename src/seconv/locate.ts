@@ -7,6 +7,8 @@ export const SECONV_NOT_FOUND =
 /** Where the app-managed copy of seconv lives (relative to the working directory, like config.json). */
 export const SECONV_LIB_DIR = path.resolve("lib", "seconv");
 export const SECONV_BINARY = Deno.build.os === "windows" ? "seconv.exe" : "seconv";
+/** The app-managed seconv's translation languages, saved by the installer (seconv has no command to list them). */
+export const SECONV_LANGUAGES = path.join(SECONV_LIB_DIR, "languages.json");
 
 const isFile = (p: string) => {
   try {

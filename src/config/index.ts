@@ -1,7 +1,8 @@
 import * as path from "@std/path";
 import { logger } from "../logger.ts";
+import { SECONV_LANGUAGES } from "../seconv/locate.ts";
 import defaultConfig from "./default-config.json" with { type: "json" };
-import languages from "./languages.json" with { type: "json" };
+import bundledLanguages from "./languages.json" with { type: "json" };
 
 /**
  * Application configuration, persisted to `config.json` (in the current working directory).
@@ -35,10 +36,29 @@ export type EngineConfig = { model: string; url: string; apiKey: string; useCust
 
 /**
  * Languages offered for `--translate-from` / `--translate-to`, taken from Subtitle Edit's list (the LLM engines'
- * `ChatGptTranslate.ListLanguages`). seconv accepts a code or an English name; which languages are really supported
- * depends on the engine, so other values can still be typed into config.json.
+ * `ChatGptTranslate.ListLanguages`): the list the installer saved for the installed seconv, or the bundled
+ * `languages.json` when there is none (seconv from the PATH, or the save failed). seconv accepts a code or an English
+ * name; which languages are really supported depends on the engine, so other values can still be typed into config.json.
+ * Mutated in place by `reloadLanguages`, so imports always see the current list.
  */
-export const LANGUAGES: { name: string; code: string }[] = languages;
+export const LANGUAGES: { name: string; code: string }[] = [];
+
+export const reloadLanguages = () => {
+  let list = bundledLanguages;
+  try {
+    const saved = JSON.parse(Deno.readTextFileSync(SECONV_LANGUAGES));
+    if (!Array.isArray(saved)) {
+      throw new Error("not a list");
+    }
+    list = saved;
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) {
+      logger.warn(`Failed to read ${SECONV_LANGUAGES}, using the built-in language list. ${e}`);
+    }
+  }
+  LANGUAGES.splice(0, LANGUAGES.length, ...list);
+};
+reloadLanguages();
 
 const defaults: Config = defaultConfig;
 
