@@ -24,58 +24,63 @@
       <button type="button" id="installSeconv" class="primary">Download latest pre-release</button>
     </div>
 
-    <section class="card">
-      <h2>SeConv</h2>
-      <div class="fields">
-        <div class="field">
-          <label for="translateEngine">Engine</label>
-          <select id="translateEngine" data-key="translateEngine"></select>
+    <main class="settings">
+      <section class="card">
+        <h2>SeConv</h2>
+        <div class="fields">
+          <div class="field">
+            <label for="translateEngine">Engine</label>
+            <select id="translateEngine" data-key="translateEngine"></select>
+          </div>
+          <div class="field">
+            <label for="translateModel">Model</label>
+            <input id="translateModel" data-key="model" data-engine placeholder="First available" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="translateFrom">Translate from</label>
+            <select id="translateFrom" data-key="translateFrom"></select>
+          </div>
+          <div class="field">
+            <label for="translateTo">Translate to</label>
+            <select id="translateTo" data-key="translateTo"></select>
+          </div>
+          <div class="field full">
+            <label for="translateUrl">Server URL</label>
+            <input id="translateUrl" data-key="url" data-engine spellcheck="false">
+          </div>
+          <div class="field full" data-engines="openai-compatible deepl">
+            <label for="translateApiKey">API key</label>
+            <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field full" data-engines="llamacpp ollama lmstudio openai-compatible">
+            <div class="label-row">
+              <label for="translatePrompt">Prompt</label>
+              <label
+                class="check"><input id="useCustomPrompt" type="checkbox" data-key="useCustomPrompt" data-engine> Use this prompt instead of seconv's default</label>
+            </div>
+            <input id="translatePrompt" data-key="prompt" data-engine placeholder="Leave empty to use seconv's default" spellcheck="false">
+          </div>
+          <div class="field full">
+            <label for="additionalArgs-input">Additional arguments</label>
+            <div class="chips" data-list="additionalArgs" data-engine data-placeholder="e.g. --translate-prompt:my.prompt, then press Enter"></div>
+          </div>
         </div>
-        <div class="field">
-          <label for="translateModel">Model</label>
-          <input id="translateModel" data-key="model" data-engine placeholder="First available" spellcheck="false">
-        </div>
-        <div class="field full">
-          <label for="translateUrl">Server URL</label>
-          <input id="translateUrl" data-key="url" data-engine spellcheck="false">
-        </div>
-        <div class="field full" data-engines="openai-compatible deepl">
-          <label for="translateApiKey">API key</label>
-          <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
-        </div>
-        <div class="field full" data-engines="llamacpp ollama lmstudio openai-compatible">
-          <label for="translatePrompt">Prompt</label>
-          <input id="translatePrompt" data-key="prompt" data-engine placeholder="Leave empty to use seconv's default" spellcheck="false">
-          <label class="check"><input id="useCustomPrompt" type="checkbox" data-key="useCustomPrompt" data-engine> Use this prompt instead of seconv's default</label>
-        </div>
-        <div class="field">
-          <label for="translateFrom">Translate from</label>
-          <select id="translateFrom" data-key="translateFrom"></select>
-        </div>
-        <div class="field">
-          <label for="translateTo">Translate to</label>
-          <select id="translateTo" data-key="translateTo"></select>
-        </div>
-        <div class="field full">
-          <label for="additionalArgs-input">Additional arguments</label>
-          <div class="chips" data-list="additionalArgs" data-engine data-placeholder="e.g. --translate-prompt:my.prompt, then press Enter"></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card">
-      <h2>Queue</h2>
-      <div class="fields">
-        <div class="field full">
-          <label for="rjPath">Queue directory</label>
-          <input id="rjPath" data-key="rjPath" spellcheck="false">
+      <section class="card">
+        <h2>Queue</h2>
+        <div class="fields">
+          <div class="field half">
+            <label for="rjPath">Queue directory</label>
+            <input id="rjPath" data-key="rjPath" spellcheck="false">
+          </div>
+          <div class="field half">
+            <label for="subtitleExtensions-input">File extensions</label>
+            <div class="chips" data-list="subtitleExtensions" data-placeholder="e.g. srt, then press Enter"></div>
+          </div>
         </div>
-        <div class="field full">
-          <label for="subtitleExtensions-input">File extensions</label>
-          <div class="chips" data-list="subtitleExtensions" data-placeholder="e.g. srt, then press Enter"></div>
-        </div>
-      </div>
-    </section>
+      </section>
+    </main>
 
     <div class="runbar">
       <button id="start" class="primary">Start translation</button>

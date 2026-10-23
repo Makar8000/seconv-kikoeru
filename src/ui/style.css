@@ -26,8 +26,8 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 14px 18px;
   background: var(--bg);
   color: var(--text);
   font: 13.5px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -64,14 +64,23 @@ h1 {
 }
 
 /* ---- cards & fields ---- */
+/* Shrinks and scrolls on short windows so the console below always stays visible */
+.settings {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px 16px;
+  padding: 12px 14px 14px;
 }
 .card h2 {
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   font-size: 11px;
   font-weight: 650;
   letter-spacing: .08em;
@@ -80,8 +89,8 @@ h1 {
 }
 .fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
 }
 .field {
   display: flex;
@@ -92,7 +101,17 @@ h1 {
 .field.full {
   grid-column: 1 / -1;
 }
-.field > label {
+.field.half {
+  grid-column: span 2;
+}
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.field > label,
+.label-row > label {
   font-size: 12px;
   color: var(--muted);
   font-weight: 500;
@@ -287,7 +306,7 @@ button svg,
 /* ---- console ---- */
 .console {
   flex: 1;
-  min-height: 120px;
+  min-height: 160px;
   display: flex;
   flex-direction: column;
   padding: 0;

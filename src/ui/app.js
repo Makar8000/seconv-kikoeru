@@ -129,9 +129,7 @@ const showEngine = () => {
   lists.filter(isEngine).forEach((l) => renderList(l, e[l.dataset.list]));
   syncPromptToggle();
   // Only llama.cpp gets a seconv-managed server; other engines fall back to seconv's default URL
-  $("translateUrl").placeholder = shownEngine === "llamacpp"
-    ? "Leave empty to let seconv start a server"
-    : "Leave empty to use seconv's default";
+  $("translateUrl").placeholder = shownEngine === "llamacpp" ? "Leave empty to let seconv start a server" : "Leave empty to use seconv's default";
   // seconv rejects an API key / prompt for engines that don't take one, so only show the fields where they apply
   document.querySelectorAll("[data-engines]").forEach((el) => el.hidden = !el.dataset.engines.split(" ").includes(shownEngine));
 };
