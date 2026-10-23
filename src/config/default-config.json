@@ -1,0 +1,53 @@
+{
+  "translateEngine": "llamacpp",
+  "translateFrom": "",
+  "translateTo": "en",
+  "engines": {
+    "llamacpp": {
+      "model": "",
+      "url": "http://127.0.0.1:8080/",
+      "additionalArgs": []
+    },
+    "ollama": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    },
+    "lmstudio": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    },
+    "openai-compatible": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    },
+    "libretranslate": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    },
+    "nllb-serve": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    },
+    "nllb-api": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    },
+    "deepl": {
+      "model": "",
+      "url": "",
+      "additionalArgs": []
+    }
+  },
+  "rjPath": "./queue",
+  "subtitleExtensions": [
+    "lrc",
+    "srt",
+    "vtt"
+  ]
+}

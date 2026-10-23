@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import * as path from "@std/path";
-import { config } from "../config/index.ts";
-import { logger } from "./logger.ts";
+import { config, engineConfig } from "../config/index.ts";
+import { logger } from "../logger.ts";
+import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
 
 export type SeConvFileResult = { success: boolean; error?: string };
 
@@ -29,12 +31,35 @@ type SeConvJsonOutput = {
 const HEARTBEAT_INTERVAL = 10_000;
 
 /**
+ * Runs `exe` and collects its output. Uses node:child_process because it can hide the console window Windows would
+ * otherwise open for seconv (a console program) when started from this windowless desktop app; Deno.Command can't.
+ * stdin is closed and stderr is captured, as the packaged app has no console to inherit.
+ */
+const run = (exe: string, args: string[], signal?: AbortSignal) =>
+  new Promise<{ code: number | null; signal: string | null; stdout: string; stderr: string }>((resolve, reject) => {
+    const child = execFile(exe, args, { windowsHide: true, signal, maxBuffer: Infinity, encoding: "utf8" }, (error, stdout, stderr) => {
+      // A non-zero exit still resolves: seconv reports per-file failures in its JSON output
+      if (error && typeof error.code !== "number") {
+        return reject(error);
+      }
+      resolve({ code: child.exitCode, signal: child.signalCode, stdout, stderr });
+    });
+    child.stdin?.end();
+  });
+
+/**
  * Invokes the `seconv` CLI to translate all `filePaths` (all sharing `format`) from/to the
  * configured languages. Returns a map keyed by each file's absolute path.
  */
-export const translateWithSeConv = async (filePaths: string[], format: string): Promise<SeConvResult> => {
+export const translateWithSeConv = async (filePaths: string[], format: string, abortSignal?: AbortSignal): Promise<SeConvResult> => {
+  const exe = findSeconv();
+  if (!exe) {
+    throw new Error(SECONV_NOT_FOUND);
+  }
+
   const absoluteFilePaths = filePaths.map((filePath) => path.resolve(filePath));
 
+  const engine = engineConfig();
   const args: string[] = [
     ...absoluteFilePaths,
     "--translate-engine",
@@ -46,31 +71,25 @@ export const translateWithSeConv = async (filePaths: string[], format: string): 
     "--json",
   ];
 
-  if (!config.seconvAdditionalArgs.some((arg) => arg.startsWith("--format"))) {
-    args.push(...["--format", format]);
+  if (!engine.additionalArgs.some((arg) => arg.startsWith("--format"))) {
+    args.push("--format", format);
   }
 
-  if (config.translateUrl.length) {
-    args.push(...["--translate-url", config.translateUrl]);
+  if (engine.url.length) {
+    args.push("--translate-url", engine.url);
   }
 
-  if (config.translateModel.length) {
-    args.push(...["--translate-model", config.translateModel]);
+  if (engine.model.length) {
+    args.push("--translate-model", engine.model);
   }
 
   if (config.translateFrom.length) {
-    args.push(...["--translate-from", config.translateFrom]);
+    args.push("--translate-from", config.translateFrom);
   }
 
-  if (config.seconvAdditionalArgs.length) {
-    args.push(...config.seconvAdditionalArgs);
+  if (engine.additionalArgs.length) {
+    args.push(...engine.additionalArgs);
   }
-
-  const command = new Deno.Command(config.seconvPath, {
-    args,
-    stdout: "piped",
-    stderr: "inherit",
-  });
 
   logger.info(`Translating ${absoluteFilePaths.length} .${format} file(s), this may take a while...`);
   const startedAt = Date.now();
@@ -81,23 +100,29 @@ export const translateWithSeConv = async (filePaths: string[], format: string): 
     logger.info(`Still translating... (${elapsedSeconds}s elapsed)`);
   }, HEARTBEAT_INTERVAL);
 
-  let code: number, signal: Deno.Signal | null, stdout: Uint8Array;
+  let code: number | null, signal: string | null, stdout: string, stderr: string;
   try {
-    ({ code, signal, stdout } = await command.output());
+    ({ code, signal, stdout, stderr } = await run(exe, args, abortSignal));
   } catch (error) {
-    logger.error(`Could not run seconv at "${config.seconvPath}". Check that SECONV_PATH is correct.\n${error}`);
-    Deno.exit(1);
+    if (abortSignal?.aborted) {
+      throw new Error("Translation stopped");
+    }
+    throw new Error(`Could not run seconv at "${exe}".\n${error}`);
   } finally {
     clearInterval(heartbeat);
   }
 
-  const stdoutText = new TextDecoder().decode(stdout);
+  const stderrText = stderr.trim();
+  if (stderrText) {
+    logger.warn(stderrText);
+  }
+
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
   logger.info(`Finished translating after ${elapsedSeconds}s`);
 
   let parsed: SeConvJsonOutput;
   try {
-    parsed = JSON.parse(stdoutText);
+    parsed = JSON.parse(stdout);
   } catch {
     // seconv crashed/errored before producing any JSON - treat every file as failed
     const signalSuffix = signal ? ` (signal ${signal})` : "";

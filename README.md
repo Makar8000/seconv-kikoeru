@@ -2,45 +2,49 @@
 A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [SeConv CLI](https://subtitleedit.github.io/subtitleedit/reference/command-line.html) tool that lets you batch-translate various lyric files. Originally created for use with Kikoeru but adjusted to work with any folder structure.
 
 ## Usage
+**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)). The app looks for it in `lib/seconv/` first, then in your PATH. If it isn't found, click **Download latest pre-release** in the app: it downloads the newest pre-release build for your OS/architecture (`SeConv-<OS>-<Arch>.zip` / `.tar.gz`) and extracts it to `lib/seconv/`. Both locations are relative to the folder you launch the app from (like `config.json`). Delete `lib/seconv/` to go back to the PATH version, or click the button again after deleting it to update.
+
 1) Download the latest release from [here](https://github.com/Makar8000/seconv-kikoeru/releases/latest) and extract it.
-   - The correct file is named `seconv-kikoeru.zip`.
-2) Open the `.env` file in notepad and adjust the settings as necessary.
-   - See [Configuration](#configuration) for more details on the `.env` file
-3) Save your changes and close the file
+2) Run `seconv-kikoeru`.
+3) Adjust the settings in the window (see [Configuration](#configuration)) and click **Save config**.
 4) Ensure the server for the translation engine specified in the config (ex. llama.cpp) is running
-5) Place the files you want to translate in the `queue` folder (or whatever folder you set in the `.env` file)
-6) Run `translate.exe`
+5) Place the files you want to translate in the queue folder (or set another folder in the app)
+6) Click **Start translation**. Progress (by file count) and log output are shown in the window.
 
 Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder; files that have already been successfully translated will be skipped on subsequent runs.
 
 ## Configuration
-To adjust the configuration, you will need to create a `.env` file in the same directory by creating a copy of the `.env.example` file.
+Settings are edited in the app and saved to `config.json` in the working directory. If it doesn't exist on launch, it is created from `src/config/default-config.json`. You can also edit `config.json` by hand.
 
 ### SeConv config
 These are basic configurations sent to seconv. For more information on each option, please view their official documentation [here](https://subtitleedit.github.io/subtitleedit/reference/command-line.html)
-- `SECONV_PATH` - The path to the `seconv` executable. Leave this empty if you have SubtitleEdit installed or if `seconv` is already in your PATH.
-- `TRANSLATE_ENGINE` - The engine to use for the translation. See official documentation for possible options. Defaults to `llamacpp`. The server must already be running prior to executing this application.
-- `TRANSLATE_MODEL` - The model to use for the translation. If not provided, it will use the first available model.
-- `TRANSLATE_URL` - The url of the translation server. If provided, the server must already be running prior to executing this application.
-  - Tip: If you are using `llamacpp` engine and you already have a working llama.cpp install, you can leave this field empty and `seconv` will automatically start & stop a server for you.
-- `TRANSLATE_FROM` - The language to translate from. Defaults to auto-detect per file.
-- `TRANSLATE_TO` - The language to translate to. Defaults to English.
-- `SECONV_ADDITIONAL_ARGS` - For advanced use, you can provide any additional arguments you'd like to pass to the `seconv` process here (comma-seperated). This can be useful if you want to use your own settings, profile, dictionary/replacements, system prompt, etc. See the official documentation for more information on the possible options.
+- `translateEngine` - The engine to use for the translation. See official documentation for possible options. Defaults to `llamacpp`.
+- `translateFrom` - The language to translate from. Defaults to auto-detect per file.
+- `translateTo` - The language to translate to. Defaults to English.
+- `engines` - Settings for each translation engine. Every engine has its own entry, so switching engines in the app never loses what you set for another one. Only the selected `translateEngine` is used when translating. Each entry has:
+  - `model` - The model to use. If empty, it will use the first available model.
+  - `url` - The url of the translation server. If provided, the server must already be running.
+    - Tip: If you are using the `llamacpp` engine and you already have a working llama.cpp install, you can leave this empty and `seconv` will automatically start & stop a server for you.
+  - `additionalArgs` - For advanced use, a list of additional arguments to pass to the `seconv` process. See the official documentation for more information.
 
 ### seconv-kikoeru config
-- `RJ_PATH` - The location of the folder that contains all of your lyric/subtitle files that need to be translated. This path will be searched recursively. Defaults to `./queue` in the same directory if not provided.
-- `SUBTITLE_EXTENSIONS` - A comma-seperated list of file extensions to parse. Defaults to `lrc,srt,vtt`.
+- `rjPath` - The folder that contains all of your lyric/subtitle files that need to be translated. Searched recursively. Defaults to `./queue`.
+- `subtitleExtensions` - The file extensions to parse. Defaults to `lrc`, `srt`, `vtt`.
+
+## Menu
+- **Tools → Update seconv** - Downloads the latest pre-release of seconv into `lib/seconv/`.
+- **Tools → Restore backups** - Restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
+
+Both are unavailable while a translation, download or restore is already running.
 
 ## Running from source
-This project requires [deno](https://deno.com/) to run.
+This project requires [deno](https://deno.com/) 2.9+ (uses `deno desktop` with the system WebView backend).
 
 1) `deno install`
-2) Copy `.env.example` to `.env`
-3) Edit `.env` and adjust settings as necessary.
-   - See [Configuration](#configuration) for more details on the `.env` file
-4) Place your files/folders with untranslated subtitles in your `RJ_PATH` (queue) folder
-5) `deno task translate`
+2) `deno task dev` (hot reload) or `deno task build` (outputs `bin/seconv-kikoeru/`)
 
 ### Tasks
-- `deno task translate` - The main task. Translates lyrics/subtitles as specified in this README.
-- `deno task restore-backups` - Restores any files in the `.trans-metadata/backups` subfolders back to their original (pre-translation) content. Afterwards, each RJ folder's `.trans-metadata` folder is deleted.
+- `deno task dev` - Runs the desktop app with hot module reload.
+- `deno task build` - Builds the desktop app for the current platform.
+
+On Linux, the WebView backend needs WebKitGTK.

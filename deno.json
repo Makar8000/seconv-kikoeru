@@ -1,21 +1,28 @@
 {
   "version": "1.1.0",
   "tasks": {
-    "translate": "deno run -EWR --allow-run src/translate.ts",
-    "restore-backups": "deno run -EWR src/restore-backups.ts",
-    "compile": "deno compile -EWR --allow-run src/translate.ts",
-    "compile-restore": "deno compile -EWR src/restore-backups.ts"
+    "dev": "deno desktop --hmr -ERW --allow-run --allow-net --no-code-cache --include src/ui src/main.ts",
+    "build": "deno desktop -ERW --allow-run --allow-net --no-code-cache --include src/ui -o bin/seconv-kikoeru src/main.ts"
+  },
+  "desktop": {
+    "app": {
+      "name": "seconv-kikoeru",
+      "identifier": "com.makar.seconv-kikoeru"
+    },
+    "backend": "webview"
+  },
+  "vendor": true,
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@std/fs": "jsr:@std/fs@^1.0.24",
+    "@std/path": "jsr:@std/path@^1.1.6",
+    "@std/tar": "jsr:@std/tar@^0.1.10",
+    "@zip-js/zip-js": "jsr:@zip-js/zip-js@^2.23.0"
   },
   "fmt": {
     "lineWidth": 150,
     "include": [
       "src/"
     ]
-  },
-  "vendor": true,
-  "imports": {
-    "@std/dotenv": "jsr:@std/dotenv@^0.225.8",
-    "@std/fs": "jsr:@std/fs@^1.0.24",
-    "@std/path": "jsr:@std/path@^1.1.6"
   }
 }

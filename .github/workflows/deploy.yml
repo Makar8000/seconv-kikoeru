@@ -27,7 +27,7 @@ jobs:
         run: "deno install"
 
       - name: Compile Executable
-        run: "deno task compile"
+        run: "deno task build"
 
       - name: Create Artifact
         run: |
@@ -35,8 +35,7 @@ jobs:
           mkdir artifact
           mkdir artifact/queue
           New-Item artifact\queue\.place-files-to-translate-here
-          Move-Item -Path .env.example -Destination artifact\.env
-          Move-Item -Path translate.exe -Destination artifact\translate.exe
+          Copy-Item -Path bin\seconv-kikoeru\* -Destination artifact -Recurse
           Compress-Archive -Path artifact\* -DestinationPath release\seconv-kikoeru.zip -Force
 
       - name: Upload Artifact

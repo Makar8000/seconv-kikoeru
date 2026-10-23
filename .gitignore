@@ -3,7 +3,10 @@ vendor
 .vscode
 .clinerules
 
-.env
+config.json
+lib/
+seconv-kikoeru/
+*.dll
 data
 artifact
 release
@@ -14,3 +17,4 @@ bin
 queue/**
 !queue/**/.gitkeep
 data/**
+.env

@@ -1,10 +1,10 @@
 import * as fs from "@std/fs";
 import * as path from "@std/path";
-import { config } from "../config/index.ts";
+import { config, engineConfig } from "../config/index.ts";
 import { BACKUPS_FOLDER, METADATA_FOLDER } from "./fileDiscovery.ts";
-import { logger } from "./logger.ts";
+import { logger } from "../logger.ts";
 import { loadManifest, removeByFile, saveManifest, type TranslatedEntry, type TranslationErrorEntry, upsertByFile } from "./manifest.ts";
-import { translateWithSeConv } from "./seconv.ts";
+import { translateWithSeConv } from "../seconv/convert.ts";
 
 const MANIFEST_FILENAME = "manifest.json";
 
@@ -39,7 +39,13 @@ const backupFile = (rjFolder: string, relativeFile: string) => {
  *
  * Returns the list of error entries produced during this call (for run-level reporting).
  */
-export const translateFiles = async (rjcode: string, files: string[]): Promise<TranslationErrorEntry[]> => {
+export const translateFiles = async (
+  rjcode: string,
+  files: string[],
+  /** Called with the number of files newly finished (skipped, or translated/failed in a batch). */
+  onProgress: (finished: number) => void = () => {},
+  signal?: AbortSignal,
+): Promise<TranslationErrorEntry[]> => {
   const rjFolder = path.join(config.rjPath, rjcode);
   const manifestPath = path.join(rjFolder, METADATA_FOLDER, MANIFEST_FILENAME);
   const manifest = loadManifest(manifestPath);
@@ -53,6 +59,8 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
   if (pendingFiles.length !== files.length) {
     logger.info(`Skipping ${files.length - pendingFiles.length} already-translated file(s)`);
   }
+
+  onProgress(files.length - pendingFiles.length);
 
   if (!pendingFiles.length) {
     return [];
@@ -74,7 +82,7 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
       }
 
       const filePaths = batchFiles.map((file) => path.join(config.rjPath, file));
-      const results = await translateWithSeConv(filePaths, ext);
+      const results = await translateWithSeConv(filePaths, ext, signal);
       const timestamp = new Date().toISOString();
 
       for (let i = 0; i < batchFiles.length; i++) {
@@ -89,10 +97,10 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
             file: manifestFile,
             timestamp,
             translateEngine: config.translateEngine,
-            translateModel: config.translateModel,
+            translateModel: engineConfig().model,
             translateFrom: config.translateFrom,
             translateTo: config.translateTo,
-            additionalArgs: config.seconvAdditionalArgs,
+            additionalArgs: engineConfig().additionalArgs,
           });
           removeByFile(manifest.errors, manifestFile);
         } else {
@@ -100,16 +108,17 @@ export const translateFiles = async (rjcode: string, files: string[]): Promise<T
             file: manifestFile,
             timestamp,
             translateEngine: config.translateEngine,
-            translateModel: config.translateModel,
+            translateModel: engineConfig().model,
             translateFrom: config.translateFrom,
             translateTo: config.translateTo,
-            additionalArgs: config.seconvAdditionalArgs,
+            additionalArgs: engineConfig().additionalArgs,
             error: result?.error ?? "Unknown error (seconv did not report a result for this file)",
           };
           upsertByFile(manifest.errors, errorEntry);
           runErrors.push(errorEntry);
         }
       }
+      onProgress(batchFiles.length);
     }
   } finally {
     // Persist progress even if a later file/extension group throws

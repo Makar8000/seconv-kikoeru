@@ -1,0 +1,339 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --border: #272c37;
+  --border-strong: #353b49;
+  --text: #e6e8ee;
+  --muted: #8b93a3;
+  --accent: #5b8def;
+  --accent-hover: #7aa2f5;
+  --danger: #e5484d;
+  --ok: #3fb27f;
+  --warn: #e0a82e;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13.5px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- header ---- */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.pill.running {
+  color: var(--accent-hover);
+  border-color: var(--accent);
+}
+
+/* ---- cards & fields ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
+}
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.field.full {
+  grid-column: 1 / -1;
+}
+.field > label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  transition: border-color .12s;
+}
+input::placeholder {
+  color: #5d6575;
+}
+input:hover,
+select:hover {
+  border-color: #465066;
+}
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---- buttons ---- */
+button {
+  padding: 7px 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s;
+}
+button:hover:not(:disabled) {
+  background: #272c38;
+  border-color: #465066;
+}
+button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1020;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+button.danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+button.danger:hover:not(:disabled) {
+  background: rgba(229, 72, 77, .12);
+  border-color: var(--danger);
+}
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+button.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text);
+}
+button svg,
+.icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  vertical-align: -3px;
+}
+
+/* ---- chip lists ---- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: text;
+}
+.chips:hover {
+  border-color: #465066;
+}
+.chips:focus-within {
+  border-color: var(--accent);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.chip button {
+  padding: 0 5px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.2;
+  border-radius: 4px;
+}
+.chip button:hover:not(:disabled) {
+  background: rgba(229, 72, 77, .18);
+  color: var(--danger);
+}
+.chips input {
+  flex: 1;
+  min-width: 140px;
+  width: auto;
+  padding: 3px 4px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+}
+
+/* ---- run bar ---- */
+.runbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.progress {
+  flex: 1;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress > div {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width .25s ease;
+}
+.progress.done > div {
+  background: var(--ok);
+}
+#status {
+  min-width: 72px; /* fixed width so the bar doesn't resize as the numbers grow */
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- console ---- */
+.console {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.console-head h2 {
+  margin: 0;
+}
+#console {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 14px;
+  font: 12px/1.55 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#console .info {
+  color: #b4bbc9;
+}
+#console .warn {
+  color: var(--warn);
+}
+#console .error {
+  color: #f27b80;
+}
+#console:empty::before {
+  content: "Output will appear here.";
+  color: #5d6575;
+}
+
+/* ---- notices ---- */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+  background: rgba(224, 168, 46, .08);
+  border: 1px solid rgba(224, 168, 46, .45);
+  border-radius: var(--radius);
+}
+.notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.notice code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.notice strong {
+  color: var(--warn);
+  font-weight: 600;
+}
+.notice span {
+  color: var(--text);
+}
+.notice a {
+  color: var(--accent-hover);
+  word-break: break-all;
+}
