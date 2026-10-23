@@ -99,7 +99,8 @@ const saveLanguages = async (tag: string) => {
     if (!languages.length) {
       throw new Error("No languages found in the source.");
     }
-    await Deno.writeTextFile(SECONV_LANGUAGES, JSON.stringify(languages, null, 2));
+    // One language per line, like the bundled languages.json
+    await Deno.writeTextFile(SECONV_LANGUAGES, `[\n${languages.map((l) => `  ${JSON.stringify(l)}`).join(",\n")}\n]\n`);
     logger.info(`Saved the language list of seconv ${tag} (${languages.length} languages).`);
   } catch (e) {
     logger.warn(`Couldn't get the language list of seconv ${tag}, using the built-in one. ${e}`);
