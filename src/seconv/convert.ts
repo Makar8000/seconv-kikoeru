@@ -83,6 +83,14 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
     args.push("--translate-model", engine.model);
   }
 
+  if (engine.apiKey.length) {
+    args.push("--translate-api-key", engine.apiKey);
+  }
+
+  if (engine.useCustomPrompt && engine.prompt.length) {
+    args.push("--translate-prompt", engine.prompt);
+  }
+
   if (config.translateFrom.length) {
     args.push("--translate-from", config.translateFrom);
   }

@@ -26,9 +26,12 @@ export type Config = {
  * Settings that belong to a single translation engine.
  * - `model`: if empty, seconv uses the first available model
  * - `url`: if empty (llamacpp), seconv starts & stops a server itself
+ * - `apiKey`: only for openai-compatible and deepl (required for deepl)
+ * - `useCustomPrompt`: if false, `prompt` is kept but not sent, so seconv uses its default prompt
+ * - `prompt`: only for the LLM engines (llamacpp, ollama, lmstudio, openai-compatible); if empty, seconv's default
  * - `additionalArgs`: extra args passed straight to seconv
  */
-export type EngineConfig = { model: string; url: string; additionalArgs: string[] };
+export type EngineConfig = { model: string; url: string; apiKey: string; useCustomPrompt: boolean; prompt: string; additionalArgs: string[] };
 
 /**
  * Languages offered for `--translate-from` / `--translate-to`, taken from Subtitle Edit's list (the LLM engines'
@@ -49,6 +52,7 @@ export const configPath = path.resolve("config.json");
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
 const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => x.trim()).filter((x) => x) : []);
 
 const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
@@ -56,6 +60,9 @@ const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
   return {
     model: str(input.model) ?? def?.model ?? "",
     url: str(input.url) ?? def?.url ?? "",
+    apiKey: str(input.apiKey) ?? def?.apiKey ?? "",
+    useCustomPrompt: bool(input.useCustomPrompt) ?? def?.useCustomPrompt ?? false,
+    prompt: str(input.prompt) ?? def?.prompt ?? "",
     additionalArgs: list(input.additionalArgs),
   };
 };

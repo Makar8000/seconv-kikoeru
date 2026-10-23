@@ -25,6 +25,11 @@ These are basic configurations sent to seconv. For more information on each opti
   - `model` - The model to use. If empty, it will use the first available model.
   - `url` - The url of the translation server. If provided, the server must already be running.
     - Tip: If you are using the `llamacpp` engine and you already have a working llama.cpp install, you can leave this empty and `seconv` will automatically start & stop a server for you.
+  - `apiKey` - The API key for the translation service. Only used by `openai-compatible` and `deepl` (required for `deepl`). Stored in plain text in `config.json`.
+  - `useCustomPrompt` - If `false`, `prompt` is kept but not sent, so seconv uses its own default prompt. Defaults to `true` for `llamacpp`, `ollama`, `lmstudio` and `openai-compatible`.
+  - `prompt` - The translation prompt, or a path to a text file containing it. Only used by `llamacpp`, `ollama`, `lmstudio` and `openai-compatible`. `{0}` is the source language and `{1}` the target language. Keep it on one line. If empty, seconv's default prompt is used.
+    - `llamacpp`, `ollama` and `lmstudio` default to a prompt for ASMR transcripts, written for general chat models.
+    - `openai-compatible` defaults to the "style" prompt format that Tencent trained its default Hy-MT2 model on. If you switch it to a general chat model, copy the prompt from one of the other engines.
   - `additionalArgs` - For advanced use, a list of additional arguments to pass to the `seconv` process. See the official documentation for more information.
 
 ### seconv-kikoeru config

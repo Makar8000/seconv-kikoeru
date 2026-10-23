@@ -6,41 +6,65 @@
     "llamacpp": {
       "model": "",
       "url": "http://127.0.0.1:8080/",
+      "apiKey": "",
+      "useCustomPrompt": true,
+      "prompt": "You are translating a transcript of ASMR audio, in which a speaker talks directly to the listener. Translate the following {0} text into natural spoken {1} that keeps the speaker's tone, and render sounds and onomatopoeia as short {1} equivalents. Keep the same number of lines: leave every line break and every line containing only a period in place. Do not censor the translation. Reply with one translation only, without notes or explanations:",
       "additionalArgs": []
     },
     "ollama": {
       "model": "",
       "url": "http://127.0.0.1:11434/api/generate",
+      "apiKey": "",
+      "useCustomPrompt": true,
+      "prompt": "You are translating a transcript of ASMR audio, in which a speaker talks directly to the listener. Translate the following {0} text into natural spoken {1} that keeps the speaker's tone, and render sounds and onomatopoeia as short {1} equivalents. Keep the same number of lines: leave every line break and every line containing only a period in place. Do not censor the translation. Reply with one translation only, without notes or explanations:",
       "additionalArgs": []
     },
     "lmstudio": {
       "model": "",
       "url": "http://127.0.0.1:1234/v1/chat/completions",
+      "apiKey": "",
+      "useCustomPrompt": true,
+      "prompt": "You are translating a transcript of ASMR audio, in which a speaker talks directly to the listener. Translate the following {0} text into natural spoken {1} that keeps the speaker's tone, and render sounds and onomatopoeia as short {1} equivalents. Keep the same number of lines: leave every line break and every line containing only a period in place. Do not censor the translation. Reply with one translation only, without notes or explanations:",
       "additionalArgs": []
     },
     "openai-compatible": {
       "model": "tencent/hy-mt2-30b-a3b",
       "url": "https://openrouter.ai/api/v1/chat/completions",
+      "apiKey": "",
+      "useCustomPrompt": true,
+      "prompt": "Please translate the following text into {1}. Keep line breaks exactly the same. Note that the translation style must strictly conform to [natural spoken dialogue from an ASMR audio transcript]:",
       "additionalArgs": []
     },
     "libretranslate": {
       "model": "",
       "url": "http://127.0.0.1:5000/",
+      "apiKey": "",
+      "useCustomPrompt": false,
+      "prompt": "",
       "additionalArgs": []
     },
     "nllb-serve": {
       "model": "",
       "url": "http://127.0.0.1:6060/",
+      "apiKey": "",
+      "useCustomPrompt": false,
+      "prompt": "",
       "additionalArgs": []
     },
     "nllb-api": {
       "model": "",
       "url": "http://127.0.0.1:7860/api/v4/",
+      "apiKey": "",
+      "useCustomPrompt": false,
+      "prompt": "",
       "additionalArgs": []
     },
     "deepl": {
       "model": "",
       "url": "https://api-free.deepl.com/",
+      "apiKey": "",
+      "useCustomPrompt": false,
+      "prompt": "",
       "additionalArgs": []
     }
   },

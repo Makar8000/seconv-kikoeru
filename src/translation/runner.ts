@@ -44,7 +44,7 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
 
   // If any translations failed, log them
   if (allErrors.length) {
-    const failedList = allErrors.map(({ rjcode, error }) => `${rjcode}/${error.file}`).join("\n");
+    const failedList = allErrors.map(({ rjcode, error }) => `${rjcode}/${error.file}\n  ${error.error}`).join("\n");
     logger.error(`\nSome translations failed. List of failed files:\n${failedList}`);
   }
 };

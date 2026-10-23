@@ -39,6 +39,15 @@
           <label for="translateUrl">Server URL</label>
           <input id="translateUrl" data-key="url" data-engine spellcheck="false">
         </div>
+        <div class="field full" data-engines="openai-compatible deepl">
+          <label for="translateApiKey">API key</label>
+          <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field full" data-engines="llamacpp ollama lmstudio openai-compatible">
+          <label for="translatePrompt">Prompt</label>
+          <input id="translatePrompt" data-key="prompt" data-engine placeholder="Leave empty to use seconv's default" spellcheck="false">
+          <label class="check"><input id="useCustomPrompt" type="checkbox" data-key="useCustomPrompt" data-engine> Use this prompt instead of seconv's default</label>
+        </div>
         <div class="field">
           <label for="translateFrom">Translate from</label>
           <select id="translateFrom" data-key="translateFrom"></select>

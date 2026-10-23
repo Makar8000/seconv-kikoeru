@@ -29,16 +29,22 @@ $("clear").addEventListener("click", () => $("console").replaceChildren());
 // other engines' settings are held in `engines` untouched until the engine is switched.
 const isEngine = (el) => "engine" in el.dataset;
 const chips = (l) => [...l.querySelectorAll(".chip")].map((c) => c.dataset.value);
+// Checkboxes hold a boolean in `checked`, every other field a string in `value`
+const getValue = (f) => f.type === "checkbox" ? f.checked : f.value;
+const setValue = (f, v) => {
+  if (f.type === "checkbox") f.checked = Boolean(v);
+  else f.value = v ?? "";
+};
 let engines = {};
 let shownEngine = "";
 
 const readEngine = () => ({
-  ...Object.fromEntries(inputs.filter(isEngine).map((f) => [f.dataset.key, f.value])),
+  ...Object.fromEntries(inputs.filter(isEngine).map((f) => [f.dataset.key, getValue(f)])),
   ...Object.fromEntries(lists.filter(isEngine).map((l) => [l.dataset.list, chips(l)])),
 });
 
 const read = () => ({
-  ...Object.fromEntries(inputs.filter((f) => !isEngine(f)).map((f) => [f.dataset.key, f.value])),
+  ...Object.fromEntries(inputs.filter((f) => !isEngine(f)).map((f) => [f.dataset.key, getValue(f)])),
   ...Object.fromEntries(lists.filter((l) => !isEngine(l)).map((l) => [l.dataset.list, chips(l)])),
   engines: { ...engines, [shownEngine]: readEngine() },
 });
@@ -51,7 +57,7 @@ const save = () => {
       const { config } = await api("POST", "/api/config", read());
       // Show anything the server corrected (e.g. a blank required field), without touching the field being edited
       inputs.forEach((f) => {
-        if (f !== document.activeElement) f.value = (isEngine(f) ? config.engines[shownEngine] : config)?.[f.dataset.key] ?? "";
+        if (f !== document.activeElement) setValue(f, (isEngine(f) ? config.engines[shownEngine] : config)?.[f.dataset.key]);
       });
     } catch (e) {
       log("error", e.message);
@@ -114,14 +120,20 @@ const setSeconvFound = (found) => {
   $("seconvNotice").hidden = found;
 };
 
+// The prompt is kept while it's switched off, but greyed out to show seconv's default is used instead
+const syncPromptToggle = () => $("translatePrompt").disabled = !$("useCustomPrompt").checked;
+
 const showEngine = () => {
-  const e = engines[shownEngine] ?? { model: "", url: "", additionalArgs: [] };
-  inputs.filter(isEngine).forEach((f) => f.value = e[f.dataset.key]);
+  const e = engines[shownEngine] ?? { model: "", url: "", apiKey: "", prompt: "", additionalArgs: [] };
+  inputs.filter(isEngine).forEach((f) => setValue(f, e[f.dataset.key]));
   lists.filter(isEngine).forEach((l) => renderList(l, e[l.dataset.list]));
+  syncPromptToggle();
   // Only llama.cpp gets a seconv-managed server; other engines fall back to seconv's default URL
   $("translateUrl").placeholder = shownEngine === "llamacpp"
     ? "Leave empty to let seconv start a server"
     : "Leave empty to use seconv's default";
+  // seconv rejects an API key / prompt for engines that don't take one, so only show the fields where they apply
+  document.querySelectorAll("[data-engines]").forEach((el) => el.hidden = !el.dataset.engines.split(" ").includes(shownEngine));
 };
 
 // ---- dropdowns ----
@@ -146,7 +158,8 @@ const fill = ({ config, engines: engineNames, languages, seconvFound }) => {
   showEngine();
 };
 
-inputs.forEach((f) => f.addEventListener(f.tagName === "SELECT" ? "change" : "input", save));
+inputs.forEach((f) => f.addEventListener(f.tagName === "SELECT" || f.type === "checkbox" ? "change" : "input", save));
+$("useCustomPrompt").addEventListener("change", syncPromptToggle);
 $("translateEngine").addEventListener("change", () => {
   engines[shownEngine] = readEngine(); // keep what was typed for the engine we're leaving
   shownEngine = $("translateEngine").value;
