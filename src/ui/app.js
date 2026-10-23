@@ -118,6 +118,10 @@ const showEngine = () => {
   const e = engines[shownEngine] ?? { model: "", url: "", additionalArgs: [] };
   inputs.filter(isEngine).forEach((f) => f.value = e[f.dataset.key]);
   lists.filter(isEngine).forEach((l) => renderList(l, e[l.dataset.list]));
+  // Only llama.cpp gets a seconv-managed server; other engines fall back to seconv's default URL
+  $("translateUrl").placeholder = shownEngine === "llamacpp"
+    ? "Leave empty to let seconv start a server"
+    : "Leave empty to use seconv's default";
 };
 
 // ---- dropdowns ----
