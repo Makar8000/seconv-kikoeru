@@ -1,16 +1,19 @@
-import { BlobReader, Uint8ArrayWriter, ZipReader } from "@zip-js/zip-js";
+import { Uint8ArrayReader, ZipReader } from "@zip-js/zip-js";
 import { UntarStream } from "@std/tar/untar-stream";
 import * as path from "@std/path";
 import { logger } from "../logger.ts";
 import { reloadLanguages } from "../config/index.ts";
-import { SECONV_BINARY, SECONV_LANGUAGES, SECONV_LIB_DIR } from "./locate.ts";
+import { LLAMACPP_BIN, LLAMACPP_MODELS, LLAMACPP_SERVER, SECONV_BINARY, SECONV_LANGUAGES, SECONV_LIB_DIR } from "./locate.ts";
 
 const RELEASES_API = "https://api.github.com/repos/SubtitleEdit/subtitleedit/releases?per_page=30";
+/** llama.cpp publishes its builds as b<number> pre-releases; the versioned releases in between carry no files. */
+const LLAMACPP_RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10";
 /** The Subtitle Edit source file that defines the LLM engines' language list, at release `tag`. */
 const languagesSource = (tag: string) =>
   `https://raw.githubusercontent.com/SubtitleEdit/subtitleedit/${tag}/src/libuilogic/AutoTranslate/ChatGptTranslate.cs`;
 
 type Release = { tag_name: string; prerelease: boolean; draft: boolean; assets: { name: string; browser_download_url: string; size: number }[] };
+type Asset = Release["assets"][number];
 
 /** The `SeConv-<OS>-<Arch>` asset prefix for this machine, e.g. `SeConv-Windows-x64`. */
 export const assetPrefix = (os = Deno.build.os, arch = Deno.build.arch): string => {
@@ -45,7 +48,7 @@ const safeJoin = (dir: string, name: string): string => {
 };
 
 const extractZip = async (archive: string, dest: string) => {
-  const reader = new ZipReader(new BlobReader(new Blob([await Deno.readFile(archive)])));
+  const reader = new ZipReader(new Uint8ArrayReader(await Deno.readFile(archive)));
   try {
     for (const entry of await reader.getEntries()) {
       const target = safeJoin(dest, entry.filename);
@@ -53,7 +56,8 @@ const extractZip = async (archive: string, dest: string) => {
         await Deno.mkdir(target, { recursive: true });
       } else {
         await Deno.mkdir(path.dirname(target), { recursive: true });
-        await Deno.writeFile(target, await entry.getData!(new Uint8ArrayWriter()));
+        // Streamed to disk: llama.cpp's CUDA runtime holds a ~470 MB file. zip-js closes the file when done.
+        await entry.getData!((await Deno.create(target)).writable);
       }
     }
   } finally {
@@ -108,53 +112,101 @@ const saveLanguages = async (tag: string) => {
   reloadLanguages();
 };
 
+/** Lists a GitHub repository's releases, newest first. */
+const fetchReleases = async (url: string): Promise<Release[]> => {
+  const res = await fetch(url, { headers: { accept: "application/vnd.github+json", "user-agent": "seconv-kikoeru" } });
+  if (!res.ok) {
+    throw new Error(`GitHub returned ${res.status} ${res.statusText} while listing releases.`);
+  }
+  return res.json();
+};
+
+/**
+ * Downloads `assets` (all from release `tag`) and extracts them together into `dir`, replacing any previous copy.
+ * The new version is fully extracted and checked for `binary` before the old one is touched.
+ */
+const installAssets = async (dir: string, binary: string, tag: string, assets: Asset[]) => {
+  const parent = path.dirname(dir);
+  const staging = `${dir}.new`;
+  await Deno.mkdir(parent, { recursive: true });
+  await Deno.remove(staging, { recursive: true }).catch(() => {});
+  await Deno.mkdir(staging, { recursive: true });
+
+  try {
+    for (const asset of assets) {
+      const archive = path.join(parent, asset.name);
+      try {
+        logger.info(`Downloading ${asset.name} (${tag}, ${(asset.size / 1024 / 1024).toFixed(1)} MB)...`);
+        const download = await fetch(asset.browser_download_url, { headers: { "user-agent": "seconv-kikoeru" } });
+        if (!download.ok || !download.body) {
+          throw new Error(`Download failed: ${download.status} ${download.statusText}`);
+        }
+        await download.body.pipeTo((await Deno.create(archive)).writable);
+
+        logger.info("Extracting...");
+        await extractArchive(archive, staging);
+      } finally {
+        await Deno.remove(archive).catch(() => {});
+      }
+    }
+
+    const binaryPath = path.join(staging, binary);
+    if (!(await Deno.stat(binaryPath).then((s) => s.isFile, () => false))) {
+      throw new Error(`The downloaded archive does not contain ${binary}.`);
+    }
+    if (Deno.build.os !== "windows") {
+      await Deno.chmod(binaryPath, 0o755); // zips don't reliably carry the executable bit
+    }
+
+    await Deno.remove(dir, { recursive: true }).catch(() => {});
+    await Deno.rename(staging, dir);
+  } finally {
+    await Deno.remove(staging, { recursive: true }).catch(() => {});
+  }
+};
+
 /**
  * Downloads the newest seconv pre-release for this OS/architecture and installs it into `lib/seconv/`,
- * replacing any previous copy, along with its language list. The new version is fully extracted and checked
- * before the old one is touched.
+ * replacing any previous copy, along with its language list.
  */
 export const installSeconv = async (): Promise<string> => {
   const prefix = assetPrefix();
   logger.info("Looking up the latest seconv pre-release...");
-  const res = await fetch(RELEASES_API, { headers: { accept: "application/vnd.github+json", "user-agent": "seconv-kikoeru" } });
-  if (!res.ok) {
-    throw new Error(`GitHub returned ${res.status} ${res.statusText} while listing releases.`);
+  const { tag, asset } = pickAsset(await fetchReleases(RELEASES_API), prefix);
+  await installAssets(SECONV_LIB_DIR, SECONV_BINARY, tag, [asset]);
+  logger.info(`Installed seconv ${tag} to ${SECONV_LIB_DIR}`);
+  await saveLanguages(tag);
+  return tag;
+};
+
+/**
+ * Downloads the newest llama.cpp build into lib/llama.cpp/bin/, replacing any previous one (models/ and config.ini
+ * next to it are kept): the CUDA 13 build with its CUDA runtime when an NVIDIA driver is installed, else the CPU build.
+ * Windows only: the builds for other systems rely on symlinks, which the extractor doesn't create.
+ */
+export const installLlamaCpp = async (): Promise<string> => {
+  if (Deno.build.os !== "windows") {
+    throw new Error(`llama.cpp can only be downloaded on Windows. Put a llama.cpp release in ${LLAMACPP_BIN} yourself.`);
   }
-  const { tag, asset } = pickAsset(await res.json(), prefix);
+  const arch = { x86_64: "x64", aarch64: "arm64" }[Deno.build.arch as string];
+  // nvcuda.dll comes with the NVIDIA driver
+  const nvcuda = path.join(Deno.env.get("SystemRoot") ?? "C:\\Windows", "System32", "nvcuda.dll");
+  const cuda = await Deno.stat(nvcuda).then((s) => s.isFile, () => false);
+  const build = new RegExp(`^llama-b\\d+-bin-win-${cuda ? "cuda-(13\\.\\d+)" : "cpu"}-${arch}\\.zip$`);
+  logger.info(`Looking up the latest llama.cpp ${cuda ? "CUDA" : "CPU"} build...`);
 
-  const libDir = path.dirname(SECONV_LIB_DIR);
-  const archive = path.join(libDir, asset.name);
-  const staging = `${SECONV_LIB_DIR}.new`;
-  await Deno.mkdir(libDir, { recursive: true });
-
-  try {
-    logger.info(`Downloading ${asset.name} (${tag}, ${(asset.size / 1024 / 1024).toFixed(1)} MB)...`);
-    const download = await fetch(asset.browser_download_url, { headers: { "user-agent": "seconv-kikoeru" } });
-    if (!download.ok || !download.body) {
-      throw new Error(`Download failed: ${download.status} ${download.statusText}`);
+  for (const release of await fetchReleases(LLAMACPP_RELEASES_API)) {
+    const asset = release.assets.find((a) => build.test(a.name));
+    // The CUDA build needs the CUDA runtime of the same version, which is published as a separate zip
+    const runtime = asset && cuda
+      ? release.assets.find((a) => a.name === `cudart-llama-bin-win-cuda-${build.exec(asset.name)![1]}-${arch}.zip`)
+      : undefined;
+    if (asset && (!cuda || runtime)) {
+      await installAssets(LLAMACPP_BIN, LLAMACPP_SERVER, release.tag_name, runtime ? [asset, runtime] : [asset]);
+      await Deno.mkdir(LLAMACPP_MODELS, { recursive: true });
+      logger.info(`Installed llama.cpp ${release.tag_name} to ${LLAMACPP_BIN}. Models go in ${LLAMACPP_MODELS}.`);
+      return release.tag_name;
     }
-    await download.body.pipeTo((await Deno.create(archive)).writable);
-
-    logger.info("Extracting...");
-    await Deno.remove(staging, { recursive: true }).catch(() => {});
-    await Deno.mkdir(staging, { recursive: true });
-    await extractArchive(archive, staging);
-
-    const binary = path.join(staging, SECONV_BINARY);
-    if (!(await Deno.stat(binary).then((s) => s.isFile, () => false))) {
-      throw new Error(`The downloaded archive does not contain ${SECONV_BINARY}.`);
-    }
-    if (Deno.build.os !== "windows") {
-      await Deno.chmod(binary, 0o755); // zips don't reliably carry the executable bit
-    }
-
-    await Deno.remove(SECONV_LIB_DIR, { recursive: true }).catch(() => {});
-    await Deno.rename(staging, SECONV_LIB_DIR);
-    logger.info(`Installed seconv ${tag} to ${SECONV_LIB_DIR}`);
-    await saveLanguages(tag);
-    return tag;
-  } finally {
-    await Deno.remove(archive).catch(() => {});
-    await Deno.remove(staging, { recursive: true }).catch(() => {});
   }
+  throw new Error(`No llama.cpp ${cuda ? "CUDA" : "CPU"} build for Windows ${arch} was found in the latest releases.`);
 };

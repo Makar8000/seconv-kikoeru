@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import * as path from "@std/path";
 import { config, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
-import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
+import { findSeconv, linkLlamaCpp, prepareLlamaCpp, SECONV_NOT_FOUND, seconvEnv, unlinkLlamaCpp } from "./locate.ts";
 
 export type SeConvFileResult = { success: boolean; error?: string };
 
@@ -30,6 +30,14 @@ type SeConvJsonOutput = {
 
 const HEARTBEAT_INTERVAL = 10_000;
 
+/** True for the llamacpp engine without a server URL: seconv then starts llama-server from lib/llama.cpp. */
+export const usesLocalLlamaCpp = () =>
+  // seconv also takes "llama.cpp" and "llama" for llamacpp
+  ["llamacpp", "llama.cpp", "llama"].includes(config.translateEngine.toLowerCase()) && !engineConfig().url;
+
+/** For local llama.cpp: checks lib/llama.cpp and returns the model that seconv should start llama-server with. */
+export const localLlamaCppModel = () => (usesLocalLlamaCpp() ? prepareLlamaCpp(engineConfig().model) : undefined);
+
 /**
  * Runs `exe` and collects its output. Uses node:child_process because it can hide the console window Windows would
  * otherwise open for seconv (a console program) when started from this windowless desktop app; Deno.Command can't.
@@ -37,13 +45,27 @@ const HEARTBEAT_INTERVAL = 10_000;
  */
 const run = (exe: string, args: string[], signal?: AbortSignal) =>
   new Promise<{ code: number | null; signal: string | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = execFile(exe, args, { windowsHide: true, signal, maxBuffer: Infinity, encoding: "utf8" }, (error, stdout, stderr) => {
-      // A non-zero exit still resolves: seconv reports per-file failures in its JSON output
-      if (error && typeof error.code !== "number") {
+    if (signal?.aborted) {
+      return reject(new Error("Aborted"));
+    }
+    // A plain kill on Windows skips seconv's exit hook, which is what stops the llama-server it started, so end both
+    const stop = () =>
+      Deno.build.os === "windows"
+        ? execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }, (error) => {
+          if (error) logger.warn(`Couldn't stop seconv and its llama-server. ${error.message}`);
+        })
+        : child.kill();
+    const env = seconvEnv(Deno.env.toObject());
+    const child = execFile(exe, args, { windowsHide: true, env, maxBuffer: Infinity, encoding: "utf8" }, (error, stdout, stderr) => {
+      signal?.removeEventListener("abort", stop);
+      // A non-zero exit still resolves: seconv reports per-file failures in its JSON output. A run that finished before
+      // the stop also resolves, so its already-written files get recorded.
+      if (error && (signal?.aborted || typeof error.code !== "number")) {
         return reject(error);
       }
       resolve({ code: child.exitCode, signal: child.signalCode, stdout, stderr });
     });
+    signal?.addEventListener("abort", stop, { once: true });
     child.stdin?.end();
   });
 
@@ -60,6 +82,8 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
   const absoluteFilePaths = filePaths.map((filePath) => path.resolve(filePath));
 
   const engine = engineConfig();
+  const localModel = localLlamaCppModel();
+  const model = localModel ?? engine.model;
   const args: string[] = [
     ...absoluteFilePaths,
     "--translate-engine",
@@ -79,8 +103,8 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
     args.push("--translate-url", engine.url);
   }
 
-  if (engine.model.length) {
-    args.push("--translate-model", engine.model);
+  if (model.length) {
+    args.push("--translate-model", model);
   }
 
   if (engine.apiKey.length) {
@@ -97,6 +121,10 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
 
   if (engine.additionalArgs.length) {
     args.push(...engine.additionalArgs);
+  }
+
+  if (localModel) {
+    linkLlamaCpp();
   }
 
   logger.info(`Translating ${absoluteFilePaths.length} .${format} file(s), this may take a while...`);
@@ -118,6 +146,7 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
     throw new Error(`Could not run seconv at "${exe}".\n${error}`);
   } finally {
     clearInterval(heartbeat);
+    unlinkLlamaCpp();
   }
 
   const stderrText = stderr.trim();

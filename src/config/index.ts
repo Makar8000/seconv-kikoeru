@@ -25,8 +25,8 @@ export type Config = {
 
 /**
  * Settings that belong to a single translation engine.
- * - `model`: if empty, seconv uses the first available model
- * - `url`: if empty (llamacpp), seconv starts & stops a server itself
+ * - `model`: if empty, seconv uses the first available model (llamacpp without `url`: a file name in lib/llama.cpp/models)
+ * - `url`: if empty (llamacpp), seconv starts & stops llama-server from lib/llama.cpp
  * - `apiKey`: only for openai-compatible and deepl (required for deepl)
  * - `useCustomPrompt`: if false, `prompt` is kept but not sent, so seconv uses its default prompt
  * - `prompt`: only for the LLM engines (llamacpp, ollama, lmstudio, openai-compatible); if empty, seconv's default

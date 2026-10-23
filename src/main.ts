@@ -1,8 +1,9 @@
 import { config, LANGUAGES, TRANSLATE_ENGINES, updateConfig } from "./config/index.ts";
 import { runTranslation } from "./translation/runner.ts";
 import { getLogsSince, logger } from "./logger.ts";
-import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
-import { installSeconv } from "./seconv/installer.ts";
+import { findLlamaServer, findSeconv, SECONV_NOT_FOUND, unlinkLlamaCpp } from "./seconv/locate.ts";
+import { localLlamaCppModel, usesLocalLlamaCpp } from "./seconv/convert.ts";
+import { installLlamaCpp, installSeconv } from "./seconv/installer.ts";
 import { restoreAllBackups } from "./translation/restorer.ts";
 
 // Static UI files, read once at startup (embedded in the binary via --include src/ui)
@@ -15,14 +16,22 @@ const assets = Object.fromEntries(
   Object.entries(ASSETS).map(([route, a]) => [route, Deno.readTextFileSync(new URL(`./ui/${a.file}`, import.meta.url))]),
 );
 
+// A crash or forced close can leave a run's link to lib/llama.cpp/bin behind in lib/seconv
+try {
+  unlinkLlamaCpp();
+} catch (e) {
+  logger.warn(`Couldn't remove the llama.cpp link in lib/seconv. ${e}`);
+}
+
 type State = { running: boolean; installing: boolean; restoring: boolean; done: number; total: number };
 const state: State = { running: false, installing: false, restoring: false, done: 0, total: 0 };
 
 const busyReason = () =>
-  state.running ? "a translation is running" : state.installing ? "seconv is downloading" : state.restoring ? "backups are being restored" : "";
+  state.running ? "a translation is running" : state.installing ? "a download is running" : state.restoring ? "backups are being restored" : "";
 let abort: AbortController | undefined;
 
-const json = (body: unknown, status = 200) => Response.json(body, { status });
+// no-store: the WebView would otherwise keep these (log lines, settings with API keys) in its disk cache
+const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
 const start = () => {
   if (busyReason()) {
@@ -31,6 +40,7 @@ const start = () => {
   if (!findSeconv()) {
     throw new Error(SECONV_NOT_FOUND);
   }
+  localLlamaCppModel(); // throws when lib/llama.cpp isn't ready, before any queue folder is touched
   const controller = abort = new AbortController();
   Object.assign(state, { running: true, done: 0, total: 0 });
   logger.info("Starting translation...");
@@ -61,6 +71,8 @@ const exclusive = async <T>(flag: "installing" | "restoring", what: string, task
 
 const install = () => exclusive("installing", "update seconv", async () => ({ tag: await installSeconv(), seconvFound: findSeconv() !== null }));
 
+const installLlama = () => exclusive("installing", "update llama.cpp", installLlamaCpp);
+
 const restore = () =>
   exclusive("restoring", "restore backups", async () => {
     await restoreAllBackups();
@@ -70,7 +82,15 @@ const restore = () =>
 const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unknown> = {
   "GET /api/config": () => ({ config, engines: TRANSLATE_ENGINES, languages: LANGUAGES, seconvFound: findSeconv() !== null }),
   "POST /api/stop": () => (abort?.abort(), state),
-  "POST /api/config": (body) => ({ config: updateConfig(body) }),
+  "POST /api/config": (body) => {
+    const wasLocal = usesLocalLlamaCpp();
+    updateConfig(body);
+    // Choosing llama.cpp without a server URL downloads llama.cpp if it isn't there yet
+    if (!wasLocal && usesLocalLlamaCpp() && !findLlamaServer()) {
+      installLlama().catch(() => {}); // failures are logged by exclusive()
+    }
+    return { config };
+  },
   "GET /api/state": (_body, url) => ({
     ...state,
     seconvFound: findSeconv() !== null,
@@ -115,12 +135,18 @@ if (BrowserWindow) {
   const item = (label: string, id: string) => ({ item: { label, id, enabled: true } });
 
   win.setApplicationMenu([
-    { submenu: { label: "Tools", items: [item("Update seconv", "update-seconv"), item("Restore backups", "restore-backups")] } },
+    {
+      submenu: {
+        label: "Tools",
+        items: [item("Update seconv", "update-seconv"), item("Update llama.cpp", "update-llamacpp"), item("Restore backups", "restore-backups")],
+      },
+    },
   ]);
 
-  // Failures are already logged (and shown in the console panel) by install()/restore()
+  // Failures are already logged (and shown in the console panel) by install()/installLlama()/restore()
   win.addEventListener("menuclick", (e: { detail: { id: string } }) => {
     if (e.detail.id === "update-seconv") install().catch(() => {});
+    if (e.detail.id === "update-llamacpp") installLlama().catch(() => {});
     if (e.detail.id === "restore-backups") restore().catch(() => {});
   });
 }
