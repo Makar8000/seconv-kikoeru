@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@webviewjs/webview": "^0.4.9"
+  }
+}
