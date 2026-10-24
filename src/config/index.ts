@@ -28,8 +28,8 @@ export type Config = {
 
 /**
  * Settings that belong to a single translation engine.
- * - `model`: if empty, seconv uses the first available model. llamacpp: a Hugging Face file link or repository
- *   (downloaded into lib/llama.cpp/models), or a file name in that folder
+ * - `model`: llamacpp: a Hugging Face file link or repository (downloaded into lib/llama.cpp/models), or a file name in
+ *   that folder (the first one there when empty)
  * - `url`: llamacpp: a llama.cpp server already running there is used, else one is started on its port
  * - `apiKey`: only for openai-compatible and deepl (required for deepl)
  * - `useCustomPrompt`: if false, `prompt` is kept but not sent, so seconv uses its default prompt

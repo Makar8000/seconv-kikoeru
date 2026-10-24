@@ -25,8 +25,8 @@ const log = (level, text) => {
 $("clear").addEventListener("click", () => $("console").replaceChildren());
 
 // ---- config: every edit is saved automatically ----
-// Model / URL / extra args belong to the selected engine: the fields show that engine's settings, and the
-// other engines' settings are held in `engines` untouched until the engine is switched.
+// Fields marked data-engine (model, URL, prompt, ...) belong to the selected engine: they show that engine's settings,
+// and the other engines' settings are held in `engines` untouched until the engine is switched.
 const isEngine = (el) => "engine" in el.dataset;
 const chips = (l) => [...l.querySelectorAll(".chip")].map((c) => c.dataset.value);
 // Checkboxes hold a boolean in `checked`, every other field a string in `value`
@@ -139,7 +139,7 @@ const showEngine = () => {
     ? "http://127.0.0.1:8080/ (a llama.cpp server is started here if none is running)"
     : "Leave empty to use seconv's default";
   $("translateModel").placeholder = llamaCpp ? "Hugging Face link, user/repo:quant, or a .gguf in lib/llama.cpp/models" : "First available";
-  // seconv rejects an API key / prompt for engines that don't take one, so only show the fields where they apply
+  // Only show the fields that apply to the engine (seconv rejects an API key or prompt for engines that don't take one)
   document.querySelectorAll("[data-engines]").forEach((el) => el.hidden = !el.dataset.engines.split(" ").includes(shownEngine));
 };
 

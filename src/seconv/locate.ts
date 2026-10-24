@@ -6,10 +6,9 @@ export const SECONV_NOT_FOUND = `seconv was not found. Use the download button, 
 
 /** Everything the app runs lives under lib/ (relative to the working directory, like config.json). */
 const LIB_DIR = path.resolve("lib");
-/** Where the app-managed copy of seconv lives. */
 export const SECONV_LIB_DIR = path.join(LIB_DIR, "seconv");
 export const SECONV_BINARY = Deno.build.os === "windows" ? "seconv.exe" : "seconv";
-/** The app-managed seconv's translation languages, saved by the installer (seconv has no command to list them). */
+/** seconv's translation languages, saved by the installer (seconv has no command to list them). */
 export const SECONV_LANGUAGES = path.join(SECONV_LIB_DIR, "languages.json");
 /** llama.cpp for the llamacpp engine: bin/, models/ and config.ini. */
 export const LLAMACPP_DIR = path.join(LIB_DIR, "llama.cpp");

@@ -82,7 +82,7 @@ const extractTarGz = async (archive: string, dest: string) => {
   }
 };
 
-/** Extracts a downloaded `.zip` / `.tar.gz` seconv archive into `dest`. */
+/** Extracts a downloaded `.zip` / `.tar.gz` archive into `dest`. */
 export const extractArchive = (archive: string, dest: string) => archive.endsWith(".zip") ? extractZip(archive, dest) : extractTarGz(archive, dest);
 
 /** Pulls the `MakePair("English", "en")` entries out of Subtitle Edit's `ChatGptTranslate.cs`. */
