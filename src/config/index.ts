@@ -25,14 +25,28 @@ export type Config = {
 
 /**
  * Settings that belong to a single translation engine.
- * - `model`: if empty, seconv uses the first available model (llamacpp without `url`: a file name in lib/llama.cpp/models)
- * - `url`: if empty (llamacpp), seconv starts & stops llama-server from lib/llama.cpp
+ * - `model`: if empty, seconv uses the first available model. llamacpp: a Hugging Face file link or repository
+ *   (downloaded into lib/llama.cpp/models), or a file name in that folder
+ * - `url`: llamacpp: a llama.cpp server already running there is used, else one is started on its port
  * - `apiKey`: only for openai-compatible and deepl (required for deepl)
  * - `useCustomPrompt`: if false, `prompt` is kept but not sent, so seconv uses its default prompt
  * - `prompt`: only for the LLM engines (llamacpp, ollama, lmstudio, openai-compatible); if empty, seconv's default
+ * - `temperature`, `topP`, `topK`, `repeatPenalty`: llamacpp only, the sampling defaults of the llama-server this app
+ *   starts (seconv sends none of its own when it's given a URL); a server that was already running keeps its own
  * - `additionalArgs`: extra args passed straight to seconv
  */
-export type EngineConfig = { model: string; url: string; apiKey: string; useCustomPrompt: boolean; prompt: string; additionalArgs: string[] };
+export type EngineConfig = {
+  model: string;
+  url: string;
+  apiKey: string;
+  useCustomPrompt: boolean;
+  prompt: string;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  repeatPenalty?: number;
+  additionalArgs: string[];
+};
 
 /**
  * Languages offered for `--translate-from` / `--translate-to`, taken from Subtitle Edit's list (the LLM engines'
@@ -74,6 +88,11 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
 const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
 const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => x.trim()).filter((x) => x) : []);
+// The app's number fields send strings
+const num = (v: unknown, integer = false) => {
+  const n = typeof v === "string" && v.trim() ? Number(v) : v;
+  return typeof n === "number" && n >= 0 && (integer ? Number.isInteger(n) : Number.isFinite(n)) ? n : undefined;
+};
 
 const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
   const input = isRecord(raw) ? raw : {};
@@ -83,6 +102,11 @@ const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
     apiKey: str(input.apiKey) ?? def?.apiKey ?? "",
     useCustomPrompt: bool(input.useCustomPrompt) ?? def?.useCustomPrompt ?? false,
     prompt: str(input.prompt) ?? def?.prompt ?? "",
+    // Only engines with default sampling (llamacpp) get any; for the rest these stay undefined and aren't saved
+    temperature: num(input.temperature) ?? def?.temperature,
+    topP: num(input.topP) ?? def?.topP,
+    topK: num(input.topK, true) ?? def?.topK,
+    repeatPenalty: num(input.repeatPenalty) ?? def?.repeatPenalty,
     additionalArgs: list(input.additionalArgs),
   };
 };

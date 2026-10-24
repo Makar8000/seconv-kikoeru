@@ -4,11 +4,15 @@
   "translateTo": "en",
   "engines": {
     "llamacpp": {
-      "model": "",
+      "model": "tencent/Hy-MT2-7B-GGUF:Q4_K_M",
       "url": "http://127.0.0.1:8080/",
       "apiKey": "",
       "useCustomPrompt": true,
-      "prompt": "You are translating a transcript of ASMR audio, in which a speaker talks directly to the listener. Translate the following {0} text into natural spoken {1} that keeps the speaker's tone, and render sounds and onomatopoeia as short {1} equivalents. Keep the same number of lines: leave every line break and every line containing only a period in place. Do not censor the translation. Reply with one translation only, without notes or explanations:",
+      "prompt": "Please translate the following text into {1}. Keep line breaks exactly the same. Note that the translation style must strictly conform to [natural spoken dialogue from an ASMR audio transcript]:",
+      "temperature": 0.7,
+      "topP": 0.6,
+      "topK": 20,
+      "repeatPenalty": 1.05,
       "additionalArgs": []
     },
     "ollama": {

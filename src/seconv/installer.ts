@@ -113,8 +113,8 @@ const saveLanguages = async (tag: string) => {
 };
 
 /** Lists a GitHub repository's releases, newest first. */
-const fetchReleases = async (url: string): Promise<Release[]> => {
-  const res = await fetch(url, { headers: { accept: "application/vnd.github+json", "user-agent": "seconv-kikoeru" } });
+const fetchReleases = async (url: string, signal?: AbortSignal): Promise<Release[]> => {
+  const res = await fetch(url, { headers: { accept: "application/vnd.github+json", "user-agent": "seconv-kikoeru" }, signal });
   if (!res.ok) {
     throw new Error(`GitHub returned ${res.status} ${res.statusText} while listing releases.`);
   }
@@ -125,7 +125,7 @@ const fetchReleases = async (url: string): Promise<Release[]> => {
  * Downloads `assets` (all from release `tag`) and extracts them together into `dir`, replacing any previous copy.
  * The new version is fully extracted and checked for `binary` before the old one is touched.
  */
-const installAssets = async (dir: string, binary: string, tag: string, assets: Asset[]) => {
+const installAssets = async (dir: string, binary: string, tag: string, assets: Asset[], signal?: AbortSignal) => {
   const parent = path.dirname(dir);
   const staging = `${dir}.new`;
   await Deno.mkdir(parent, { recursive: true });
@@ -137,7 +137,7 @@ const installAssets = async (dir: string, binary: string, tag: string, assets: A
       const archive = path.join(parent, asset.name);
       try {
         logger.info(`Downloading ${asset.name} (${tag}, ${(asset.size / 1024 / 1024).toFixed(1)} MB)...`);
-        const download = await fetch(asset.browser_download_url, { headers: { "user-agent": "seconv-kikoeru" } });
+        const download = await fetch(asset.browser_download_url, { headers: { "user-agent": "seconv-kikoeru" }, signal });
         if (!download.ok || !download.body) {
           throw new Error(`Download failed: ${download.status} ${download.statusText}`);
         }
@@ -184,7 +184,7 @@ export const installSeconv = async (): Promise<string> => {
  * next to it are kept): the CUDA 13 build with its CUDA runtime when an NVIDIA driver is installed, else the CPU build.
  * Windows only: the builds for other systems rely on symlinks, which the extractor doesn't create.
  */
-export const installLlamaCpp = async (): Promise<string> => {
+export const installLlamaCpp = async (signal?: AbortSignal): Promise<string> => {
   if (Deno.build.os !== "windows") {
     throw new Error(`llama.cpp can only be downloaded on Windows. Put a llama.cpp release in ${LLAMACPP_BIN} yourself.`);
   }
@@ -195,14 +195,14 @@ export const installLlamaCpp = async (): Promise<string> => {
   const build = new RegExp(`^llama-b\\d+-bin-win-${cuda ? "cuda-(13\\.\\d+)" : "cpu"}-${arch}\\.zip$`);
   logger.info(`Looking up the latest llama.cpp ${cuda ? "CUDA" : "CPU"} build...`);
 
-  for (const release of await fetchReleases(LLAMACPP_RELEASES_API)) {
+  for (const release of await fetchReleases(LLAMACPP_RELEASES_API, signal)) {
     const asset = release.assets.find((a) => build.test(a.name));
     // The CUDA build needs the CUDA runtime of the same version, which is published as a separate zip
     const runtime = asset && cuda
       ? release.assets.find((a) => a.name === `cudart-llama-bin-win-cuda-${build.exec(asset.name)![1]}-${arch}.zip`)
       : undefined;
     if (asset && (!cuda || runtime)) {
-      await installAssets(LLAMACPP_BIN, LLAMACPP_SERVER, release.tag_name, runtime ? [asset, runtime] : [asset]);
+      await installAssets(LLAMACPP_BIN, LLAMACPP_SERVER, release.tag_name, runtime ? [asset, runtime] : [asset], signal);
       await Deno.mkdir(LLAMACPP_MODELS, { recursive: true });
       logger.info(`Installed llama.cpp ${release.tag_name} to ${LLAMACPP_BIN}. Models go in ${LLAMACPP_MODELS}.`);
       return release.tag_name;

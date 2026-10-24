@@ -1,8 +1,8 @@
 import { config, LANGUAGES, TRANSLATE_ENGINES, updateConfig } from "./config/index.ts";
 import { runTranslation } from "./translation/runner.ts";
 import { getLogsSince, logger } from "./logger.ts";
-import { findLlamaServer, findSeconv, SECONV_NOT_FOUND, unlinkLlamaCpp } from "./seconv/locate.ts";
-import { localLlamaCppModel, usesLocalLlamaCpp } from "./seconv/convert.ts";
+import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
+import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.ts";
 import { installLlamaCpp, installSeconv } from "./seconv/installer.ts";
 import { restoreAllBackups } from "./translation/restorer.ts";
 
@@ -16,12 +16,8 @@ const assets = Object.fromEntries(
   Object.entries(ASSETS).map(([route, a]) => [route, Deno.readTextFileSync(new URL(`./ui/${a.file}`, import.meta.url))]),
 );
 
-// A crash or forced close can leave a run's link to lib/llama.cpp/bin behind in lib/seconv
-try {
-  unlinkLlamaCpp();
-} catch (e) {
-  logger.warn(`Couldn't remove the llama.cpp link in lib/seconv. ${e}`);
-}
+// The llama-server started for a run must not outlive the app
+globalThis.addEventListener("unload", stopLlamaServer);
 
 type State = { running: boolean; installing: boolean; restoring: boolean; done: number; total: number };
 const state: State = { running: false, installing: false, restoring: false, done: 0, total: 0 };
@@ -40,13 +36,23 @@ const start = () => {
   if (!findSeconv()) {
     throw new Error(SECONV_NOT_FOUND);
   }
-  localLlamaCppModel(); // throws when lib/llama.cpp isn't ready, before any queue folder is touched
   const controller = abort = new AbortController();
   Object.assign(state, { running: true, done: 0, total: 0 });
   logger.info("Starting translation...");
-  runTranslation((p) => Object.assign(state, p), controller.signal)
+  const translate = async () => {
+    // llama.cpp: the server already running at its URL, or one started for this run (downloaded first if needed)
+    if (usesLlamaCpp()) {
+      await openLlamaCpp(controller.signal);
+    }
+    try {
+      await runTranslation((p) => Object.assign(state, p), controller.signal);
+    } finally {
+      stopLlamaServer();
+    }
+  };
+  translate()
     .then(() => logger.info(controller.signal.aborted ? "Translation stopped." : "Finished processing all files."))
-    .catch((e) => logger.error(e))
+    .catch((e) => controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e))
     .finally(() => state.running = false);
 };
 
@@ -82,15 +88,7 @@ const restore = () =>
 const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unknown> = {
   "GET /api/config": () => ({ config, engines: TRANSLATE_ENGINES, languages: LANGUAGES, seconvFound: findSeconv() !== null }),
   "POST /api/stop": () => (abort?.abort(), state),
-  "POST /api/config": (body) => {
-    const wasLocal = usesLocalLlamaCpp();
-    updateConfig(body);
-    // Choosing llama.cpp without a server URL downloads llama.cpp if it isn't there yet
-    if (!wasLocal && usesLocalLlamaCpp() && !findLlamaServer()) {
-      installLlama().catch(() => {}); // failures are logged by exclusive()
-    }
-    return { config };
-  },
+  "POST /api/config": (body) => ({ config: updateConfig(body) }),
   "GET /api/state": (_body, url) => ({
     ...state,
     seconvFound: findSeconv() !== null,
