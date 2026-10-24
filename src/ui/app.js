@@ -210,7 +210,7 @@ const poll = async () => {
     const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
     $("bar").style.width = `${pct}%`;
     $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
-    $("status").textContent = s.total ? `${s.done} / ${s.total}` : "";
+    $("status").textContent = s.total ? `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines` : "";
     setSeconvFound(s.seconvFound);
     // A profile picked in the menu: show its settings
     if (s.load !== shownLoad) {

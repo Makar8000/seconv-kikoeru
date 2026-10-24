@@ -1,44 +1,68 @@
+import * as path from "@std/path";
+import { config } from "../config/index.ts";
+import { inspect } from "../seconv/convert.ts";
 import { findSubtitleFilesByRjCode } from "./fileDiscovery.ts";
 import { logger } from "../logger.ts";
 import type { TranslationErrorEntry } from "./manifest.ts";
-import { translateFiles } from "./translator.ts";
+import { pendingFiles, type PlannedFile, translateFiles } from "./translator.ts";
 
-/** Progress is counted in files for now (skipped files count as done). */
-export type Progress = { done: number; total: number };
+/** Progress in lines (`done` / `total`, for the bar) and in files (for the status text). */
+export type Progress = { done: number; total: number; filesDone: number; filesTotal: number };
 
 /** Translates everything pending under the configured queue folder, reporting progress as it goes. */
 export const runTranslation = async (onProgress: (progress: Progress) => void, signal?: AbortSignal) => {
   // Find and group all pending subtitle files by RJ code
   const filesByRjCode = findSubtitleFilesByRjCode();
-  const total = Object.values(filesByRjCode).reduce((sum, files) => sum + files.length, 0);
-  let done = 0;
-  onProgress({ done, total });
+  logger.info(`Found ${Object.keys(filesByRjCode).length} folder entries.`);
+
+  // seconv inspects every pending file first: its format (there are several for .lrc), its line count for the progress
+  // bar, and its language, as a file already in the target language needs no translation
+  const plan: { rjcode: string; files: PlannedFile[] }[] = [];
+  const progress: Progress = { done: 0, total: 0, filesDone: 0, filesTotal: 0 };
+  for (const [rjcode, files] of Object.entries(filesByRjCode)) {
+    const planned: PlannedFile[] = [];
+    let lines = 0;
+    for (const file of pendingFiles(rjcode, files)) {
+      const info = await inspect(path.join(config.rjPath, file), signal);
+      if ("error" in info) {
+        planned.push({ file, format: "", lines: 0, error: info.error });
+      } else if (info.language?.toLowerCase() === config.translateTo.toLowerCase()) {
+        logger.info(`Skipping ${file}: already in ${config.translateTo}`);
+      } else {
+        planned.push({ file, format: info.format, lines: info.lines });
+        lines += info.lines;
+        progress.filesTotal++;
+      }
+    }
+    if (planned.length) {
+      plan.push({ rjcode, files: planned });
+      progress.total += lines;
+      logger.info(`${rjcode}: ${planned.filter((p) => !p.error).length} file(s), ${lines} line(s) to translate`);
+    }
+  }
+  onProgress({ ...progress });
 
   // Keep track of any failed translations across this run
   const allErrors: { rjcode: string; error: TranslationErrorEntry }[] = [];
 
-  logger.info(`Found ${Object.keys(filesByRjCode).length} folder entries.`);
-  for (const [rjcode, files] of Object.entries(filesByRjCode)) {
+  for (const { rjcode, files } of plan) {
     if (signal?.aborted) {
       logger.warn("Stopped.");
       break;
     }
     logger.info(`\nParsing ${rjcode}...`);
-    const base = done;
-    // Translate all pending files in the folder
     try {
-      const errors = await translateFiles(rjcode, files, (n) => {
-        done += n;
-        onProgress({ done, total });
+      const errors = await translateFiles(rjcode, files, (lines) => {
+        progress.done += lines;
+        progress.filesDone++;
+        onProgress({ ...progress });
       }, signal);
       allErrors.push(...errors.map((error) => ({ rjcode, error })));
       logger.info(`Completed ${rjcode}`);
     } catch (e) {
-      logger.error(e);
-    } finally {
-      // Whatever happened, this folder is finished
-      done = base + files.length;
-      onProgress({ done, total });
+      if (!signal?.aborted) {
+        logger.error(e);
+      }
     }
   }
 

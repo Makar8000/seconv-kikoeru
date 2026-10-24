@@ -35,18 +35,54 @@ const HEARTBEAT_INTERVAL = 10_000;
  */
 const run = (exe: string, args: string[], signal?: AbortSignal) =>
   new Promise<{ code: number | null; signal: string | null; stdout: string; stderr: string }>((resolve, reject) => {
+    if (signal?.aborted) {
+      return reject(new Error("Translation stopped"));
+    }
     const child = execFile(exe, args, { windowsHide: true, signal, maxBuffer: Infinity, encoding: "utf8" }, (error, stdout, stderr) => {
       // A non-zero exit still resolves: seconv reports per-file failures in its JSON output
       if (error && typeof error.code !== "number") {
-        return reject(error);
+        return reject(new Error(signal?.aborted ? "Translation stopped" : `Could not run seconv at "${exe}".\n${error}`));
       }
       resolve({ code: child.exitCode, signal: child.signalCode, stdout, stderr });
     });
     child.stdin?.end();
   });
 
-/** Invokes the `seconv` CLI to translate `filePath` in place from/to the configured languages. */
-export const translateWithSeConv = async (filePath: string, abortSignal?: AbortSignal): Promise<SeConvFileResult> => {
+const parseJson = (text: string) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+
+/** What seconv makes of a file: the format it reads it as, its language (null if undetected) and its line count. */
+export type SeConvInfo = { format: string; language: string | null; lines: number };
+
+/**
+ * Asks seconv (`seconv info`) to inspect `filePath`. seconv has no "same format as the input" and no `lrc` shortcut
+ * (unlike `srt` and `vtt`), so the detected format's name is what the translation passes as `--format`. It saves with
+ * the format's extension, so a format with another extension is refused: it would mean a new file next to this one.
+ */
+export const inspect = async (filePath: string, signal?: AbortSignal): Promise<SeConvInfo | { error: string }> => {
+  const exe = findSeconv();
+  if (!exe) {
+    throw new Error(SECONV_NOT_FOUND);
+  }
+  const { stdout, stderr } = await run(exe, ["info", path.resolve(filePath), "--json"], signal);
+  const info = parseJson(stdout);
+  if (!info?.format) {
+    // On a failure seconv prints {"error": "..."} on stderr instead
+    return { error: String(parseJson(stderr)?.error ?? (stderr.trim() || "seconv info gave no output")) };
+  }
+  if (String(info.extension).toLowerCase() !== path.extname(filePath).toLowerCase()) {
+    return { error: `Detected as ${info.format} (${info.extension}), which seconv would write to a new file instead of this one.` };
+  }
+  return { format: String(info.format), language: info.language ? String(info.language) : null, lines: Number(info.paragraphCount) || 0 };
+};
+
+/** Invokes the `seconv` CLI to translate `filePath`, read as `format` (see `inspect`), in place from/to the configured languages. */
+export const translateWithSeConv = async (filePath: string, format: string, abortSignal?: AbortSignal): Promise<SeConvFileResult> => {
   const exe = findSeconv();
   if (!exe) {
     throw new Error(SECONV_NOT_FOUND);
@@ -72,7 +108,7 @@ export const translateWithSeConv = async (filePath: string, abortSignal?: AbortS
   ];
 
   if (!engine.additionalArgs.some((arg) => arg.startsWith("--format"))) {
-    args.push("--format", path.extname(absoluteFilePath).slice(1).toLowerCase());
+    args.push("--format", format);
   }
 
   if (url.length) {
@@ -99,7 +135,7 @@ export const translateWithSeConv = async (filePath: string, abortSignal?: AbortS
     args.push(...engine.additionalArgs);
   }
 
-  logger.info(`Translating ${path.relative(config.rjPath, absoluteFilePath)}...`);
+  logger.info(`Translating ${path.relative(config.rjPath, absoluteFilePath)} (${format})...`);
   const startedAt = Date.now();
 
   // Emit a heartbeat while translation is in progress
@@ -111,11 +147,6 @@ export const translateWithSeConv = async (filePath: string, abortSignal?: AbortS
   let code: number | null, signal: string | null, stdout: string, stderr: string;
   try {
     ({ code, signal, stdout, stderr } = await run(exe, args, abortSignal));
-  } catch (error) {
-    if (abortSignal?.aborted) {
-      throw new Error("Translation stopped");
-    }
-    throw new Error(`Could not run seconv at "${exe}".\n${error}`);
   } finally {
     clearInterval(heartbeat);
   }
@@ -128,15 +159,11 @@ export const translateWithSeConv = async (filePath: string, abortSignal?: AbortS
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
   logger.info(`Finished translating after ${elapsedSeconds}s`);
 
-  let parsed: SeConvJsonOutput;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch {
+  const parsed: SeConvJsonOutput | undefined = parseJson(stdout);
+  if (!parsed) {
     // seconv crashed/errored before producing any JSON - treat the file as failed
     const signalSuffix = signal ? ` (signal ${signal})` : "";
-    const error = `seconv produced no parseable JSON output (exit code ${code}${signalSuffix})`;
-    logger.error(`Failed to translate the file. ${error}`);
-    return { success: false, error };
+    return { success: false, error: `seconv produced no parseable JSON output (exit code ${code}${signalSuffix})` };
   }
 
   // seconv can silently omit the file from `files` (e.g. it doesn't exist, or the run failed before it was processed) -

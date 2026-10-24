@@ -13,7 +13,7 @@ import {
   uniqueName,
   updateConfig,
 } from "./config/index.ts";
-import { runTranslation } from "./translation/runner.ts";
+import { type Progress, runTranslation } from "./translation/runner.ts";
 import { getLogsSince, logger } from "./logger.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
 import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.ts";
@@ -33,8 +33,8 @@ const assets = Object.fromEntries(
 // The llama-server started for a run must not outlive the app
 globalThis.addEventListener("unload", stopLlamaServer);
 
-type State = { running: boolean; installing: boolean; restoring: boolean; done: number; total: number };
-const state: State = { running: false, installing: false, restoring: false, done: 0, total: 0 };
+type State = { running: boolean; installing: boolean; restoring: boolean } & Progress;
+const state: State = { running: false, installing: false, restoring: false, done: 0, total: 0, filesDone: 0, filesTotal: 0 };
 
 const busyReason = () =>
   state.running ? "a translation is running" : state.installing ? "a download is running" : state.restoring ? "backups are being restored" : "";
@@ -54,7 +54,7 @@ const start = () => {
     throw new Error(SECONV_NOT_FOUND);
   }
   const controller = abort = new AbortController();
-  Object.assign(state, { running: true, done: 0, total: 0 });
+  Object.assign(state, { running: true, done: 0, total: 0, filesDone: 0, filesTotal: 0 });
   logger.info("Starting translation...");
   const translate = async () => {
     // llama.cpp: the server already running at its URL, or one started for this run (downloaded first if needed)
@@ -198,6 +198,14 @@ if (BrowserWindow) {
     }
   };
 
+  /** Asks before restoring; while the app is busy, restore() explains instead why it can't. */
+  const confirmRestore = async () => {
+    const question = `Restore all backups under "${config.rjPath}"? Translated files go back to their originals.`;
+    if (busyReason() || await ask(`confirm(${JSON.stringify(question)})`) === true) {
+      await restore();
+    }
+  };
+
   showProfiles = () => {
     const profiles = listProfiles();
     win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
@@ -235,7 +243,7 @@ if (BrowserWindow) {
     const id = e.detail.id;
     if (id === "update-seconv") install().catch(() => {});
     if (id === "update-llamacpp") installLlama().catch(() => {});
-    if (id === "restore-backups") restore().catch(() => {});
+    if (id === "restore-backups") confirmRestore().catch(() => {});
     if (id === "profile-new") changeProfile(withName(uniqueName("New profile"), newProfile));
     if (id === "profile-duplicate") changeProfile(withName(uniqueName(`${config.name} (copy)`), duplicateProfile));
     if (id === "profile-rename") changeProfile(withName(config.name, renameProfile));

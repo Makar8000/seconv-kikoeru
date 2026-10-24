@@ -9,9 +9,9 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 3) Adjust the settings in the window (see [Configuration](#configuration)).
 4) Ensure the server for your translation engine is running. For llama.cpp, this is taken care of for you (see [Local llama.cpp](#local-llamacpp))
 5) Place the files you want to translate in the queue folder (or set another folder in the app)
-6) Click **Start translation**. Progress (by file count) and log output are shown in the window.
+6) Click **Start translation**. Progress (by line count) and log output are shown in the window.
 
-Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder; files that have already been successfully translated will be skipped on subsequent runs.
+Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped.
 
 ## Configuration
 Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** menu switches between profiles and creates new ones (see [Menu](#menu)).
@@ -61,7 +61,7 @@ Everything it starts comes from `lib/llama.cpp/`:
 - **Profile → *(a profile)*** - Loads that profile. The loaded one has a check mark, and its name is in the window title.
 - **Tools → Update seconv** - Downloads the latest pre-release of seconv into `lib/seconv/`.
 - **Tools → Update llama.cpp** - Downloads the latest llama.cpp release into `lib/llama.cpp/bin/` (Windows only, see [Local llama.cpp](#local-llamacpp)).
-- **Tools → Restore backups** - Restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
+- **Tools → Restore backups** - Asks for confirmation, then restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
 
 The above menu options are unavailable while a translation, download or restore is already running.
 
