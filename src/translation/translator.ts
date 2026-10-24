@@ -34,15 +34,15 @@ const backupFile = (rjFolder: string, relativeFile: string) => {
  * Translates the given `files` (paths relative to `config.rjPath`) belonging to a single RJ
  * folder, skipping any already recorded as translated in that folder's manifest.
  *
- * Pending files are backed up, then grouped by extension and translated.
- * Each file's success/error result from `seconv` is recorded/updated in the manifest.
+ * Pending files are backed up, then translated one `seconv` call at a time.
+ * Each file's success/error result is recorded/updated in the manifest as soon as it's known.
  *
  * Returns the list of error entries produced during this call (for run-level reporting).
  */
 export const translateFiles = async (
   rjcode: string,
   files: string[],
-  /** Called with the number of files newly finished (skipped, or translated/failed in a batch). */
+  /** Called with the number of files newly finished (skipped, translated or failed). */
   onProgress: (finished: number) => void = () => {},
   signal?: AbortSignal,
 ): Promise<TranslationErrorEntry[]> => {
@@ -68,61 +68,47 @@ export const translateFiles = async (
 
   const runErrors: TranslationErrorEntry[] = [];
 
-  try {
-    // Create a backup of each file, mirroring the RJ folder structure
-    for (const file of pendingFiles) {
-      backupFile(rjFolder, file);
+  // Create a backup of each file, mirroring the RJ folder structure
+  for (const file of pendingFiles) {
+    backupFile(rjFolder, file);
+  }
+
+  // One seconv call per file: progress moves file by file, and a stop or crash only loses the file in progress
+  for (const file of pendingFiles) {
+    const result = await translateWithSeConv(path.join(config.rjPath, file), signal);
+    const timestamp = new Date().toISOString();
+    // manifest entries are keyed by path relative to `rjFolder`, not `config.rjPath`
+    const manifestFile = toRjFolderRelative(file);
+
+    if (result.success) {
+      upsertByFile<TranslatedEntry>(manifest.translated, {
+        file: manifestFile,
+        timestamp,
+        translateEngine: config.translateEngine,
+        translateModel: engineConfig().model,
+        translateFrom: config.translateFrom,
+        translateTo: config.translateTo,
+        additionalArgs: engineConfig().additionalArgs,
+      });
+      removeByFile(manifest.errors, manifestFile);
+    } else {
+      const errorEntry: TranslationErrorEntry = {
+        file: manifestFile,
+        timestamp,
+        translateEngine: config.translateEngine,
+        translateModel: engineConfig().model,
+        translateFrom: config.translateFrom,
+        translateTo: config.translateTo,
+        additionalArgs: engineConfig().additionalArgs,
+        error: result.error ?? "Unknown error (seconv gave no reason)",
+      };
+      logger.error(`Failed: ${errorEntry.error}`);
+      upsertByFile(manifest.errors, errorEntry);
+      runErrors.push(errorEntry);
     }
-
-    // Run the seconv batch process, grouped by file extension and parent folder
-    for (const ext of config.subtitleExtensions) {
-      const batchFiles = pendingFiles.filter((file) => path.extname(file).substring(1).toLowerCase() === ext.toLowerCase());
-      if (!batchFiles.length) {
-        continue;
-      }
-
-      const filePaths = batchFiles.map((file) => path.join(config.rjPath, file));
-      const results = await translateWithSeConv(filePaths, ext, signal);
-      const timestamp = new Date().toISOString();
-
-      for (let i = 0; i < batchFiles.length; i++) {
-        const file = batchFiles[i];
-        // results are keyed by absolute path, matching how seconv reports them back
-        const result = results.get(path.resolve(filePaths[i]));
-        // manifest entries are keyed by path relative to `rjFolder`, not `config.rjPath`
-        const manifestFile = toRjFolderRelative(file);
-
-        if (result?.success) {
-          upsertByFile<TranslatedEntry>(manifest.translated, {
-            file: manifestFile,
-            timestamp,
-            translateEngine: config.translateEngine,
-            translateModel: engineConfig().model,
-            translateFrom: config.translateFrom,
-            translateTo: config.translateTo,
-            additionalArgs: engineConfig().additionalArgs,
-          });
-          removeByFile(manifest.errors, manifestFile);
-        } else {
-          const errorEntry: TranslationErrorEntry = {
-            file: manifestFile,
-            timestamp,
-            translateEngine: config.translateEngine,
-            translateModel: engineConfig().model,
-            translateFrom: config.translateFrom,
-            translateTo: config.translateTo,
-            additionalArgs: engineConfig().additionalArgs,
-            error: result?.error ?? "Unknown error (seconv did not report a result for this file)",
-          };
-          upsertByFile(manifest.errors, errorEntry);
-          runErrors.push(errorEntry);
-        }
-      }
-      onProgress(batchFiles.length);
-    }
-  } finally {
-    // Persist progress even if a later file/extension group throws
+    // Saved after every file, as seconv has already overwritten a translated one in place
     saveManifest(manifestPath, manifest);
+    onProgress(1);
   }
 
   return runErrors;

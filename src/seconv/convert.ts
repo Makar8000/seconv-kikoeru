@@ -7,9 +7,6 @@ import { llamaCppUrl, usesLlamaCpp } from "./llamacpp.ts";
 
 export type SeConvFileResult = { success: boolean; error?: string };
 
-/** Per-file results of a `translateWithSeConv` call, keyed by the (absolute) input file path. */
-export type SeConvResult = Map<string, SeConvFileResult>;
-
 /** Shape of a single entry in the `files` array of `seconv --json` output. */
 type SeConvJsonFileEntry = {
   input: string;
@@ -48,17 +45,14 @@ const run = (exe: string, args: string[], signal?: AbortSignal) =>
     child.stdin?.end();
   });
 
-/**
- * Invokes the `seconv` CLI to translate all `filePaths` (all sharing `format`) from/to the
- * configured languages. Returns a map keyed by each file's absolute path.
- */
-export const translateWithSeConv = async (filePaths: string[], format: string, abortSignal?: AbortSignal): Promise<SeConvResult> => {
+/** Invokes the `seconv` CLI to translate `filePath` in place from/to the configured languages. */
+export const translateWithSeConv = async (filePath: string, abortSignal?: AbortSignal): Promise<SeConvFileResult> => {
   const exe = findSeconv();
   if (!exe) {
     throw new Error(SECONV_NOT_FOUND);
   }
 
-  const absoluteFilePaths = filePaths.map((filePath) => path.resolve(filePath));
+  const absoluteFilePath = path.resolve(filePath);
 
   const engine = engineConfig();
   // llama.cpp always goes through a server at its URL (one we started for this run, or one that was already running);
@@ -67,7 +61,7 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
   const url = llamaCpp ? llamaCppUrl() : engine.url;
   const model = llamaCpp ? "" : engine.model;
   const args: string[] = [
-    ...absoluteFilePaths,
+    absoluteFilePath,
     "--translate-engine",
     config.translateEngine,
     "--translate-to",
@@ -78,7 +72,7 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
   ];
 
   if (!engine.additionalArgs.some((arg) => arg.startsWith("--format"))) {
-    args.push("--format", format);
+    args.push("--format", path.extname(absoluteFilePath).slice(1).toLowerCase());
   }
 
   if (url.length) {
@@ -105,7 +99,7 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
     args.push(...engine.additionalArgs);
   }
 
-  logger.info(`Translating ${absoluteFilePaths.length} .${format} file(s), this may take a while...`);
+  logger.info(`Translating ${path.relative(config.rjPath, absoluteFilePath)}...`);
   const startedAt = Date.now();
 
   // Emit a heartbeat while translation is in progress
@@ -138,30 +132,18 @@ export const translateWithSeConv = async (filePaths: string[], format: string, a
   try {
     parsed = JSON.parse(stdout);
   } catch {
-    // seconv crashed/errored before producing any JSON - treat every file as failed
+    // seconv crashed/errored before producing any JSON - treat the file as failed
     const signalSuffix = signal ? ` (signal ${signal})` : "";
     const error = `seconv produced no parseable JSON output (exit code ${code}${signalSuffix})`;
-    logger.error(`Failed to translate files. ${error}`);
-    return new Map(absoluteFilePaths.map((filePath) => [filePath, { success: false, error }]));
+    logger.error(`Failed to translate the file. ${error}`);
+    return { success: false, error };
   }
 
-  const resultsByPath = new Map<string, SeConvFileResult>();
-  for (const fileEntry of parsed.files) {
-    resultsByPath.set(fileEntry.input, {
-      success: fileEntry.success,
-      error: fileEntry.error ?? undefined,
-    });
+  // seconv can silently omit the file from `files` (e.g. it doesn't exist, or the run failed before it was processed) -
+  // fall back to the run-level error, or a generic message
+  const entry = parsed.files.find((f) => f.input === absoluteFilePath);
+  if (!entry) {
+    return { success: false, error: parsed.errors.length ? parsed.errors.join("; ") : "File was not found in seconv's output" };
   }
-
-  // seconv can silently omit a file from `files` (e.g. it doesn't exist, or the whole run failed
-  // before any file was processed) - fall back to the run-level error, or a generic message
-  const missingFileError = parsed.errors.length ? parsed.errors.join("; ") : "File was not found in seconv's output";
-
-  for (const filePath of absoluteFilePaths) {
-    if (!resultsByPath.has(filePath)) {
-      resultsByPath.set(filePath, { success: false, error: missingFileError });
-    }
-  }
-
-  return resultsByPath;
+  return { success: entry.success, error: entry.error ?? undefined };
 };

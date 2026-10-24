@@ -88,7 +88,7 @@ export const TRANSLATE_ENGINES = Object.keys(defaults.engines);
 /** One .json file per profile */
 const PROFILES_DIR = path.resolve("profiles");
 /** Settings of the app rather than of a profile: which profile is loaded */
-const appPath = path.resolve("config.json");
+const appPath = path.resolve("settings.json");
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
@@ -225,7 +225,7 @@ export const currentProfile = () => profileFile;
 let loads = 0;
 export const profileLoads = () => loads;
 
-/** Loads the profile config.json names, else the first one; on a first launch, creates the default and OpenRouter profiles. */
+/** Loads the profile settings.json names, else the first one; on a first launch, creates the default and OpenRouter profiles. */
 const load = (): Config => {
   let wanted: unknown;
   try {

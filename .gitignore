@@ -8,7 +8,7 @@ artifact
 release
 
 # seconv-kikoeru
-config.json
+settings.json
 profiles/
 lib/
 queue/**
