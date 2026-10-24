@@ -17,7 +17,7 @@ Files will be translated in-place. Backups will be placed in a `.trans-metadata/
 Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** menu switches between profiles and creates new ones (see [Menu](#menu)).
 
 Two different profiles are provided by default:
-- `Default` - The local `llamacpp` engine with Tencent's Hy-MT2 (see [Local llama.cpp](#local-llamacpp)).
+- `Local llama.cpp` - The local `llamacpp` engine with Tencent's Hy-MT2 (see [Local llama.cpp](#local-llamacpp)).
 - `OpenRouter` - The `openai-compatible` engine with [OpenRouter](https://openrouter.ai/)'s `deepseek/deepseek-v4.1-flash` and a prompt for audio transcripts written for chat models. Add your OpenRouter API key to use it.
 
 The currently selected profile is saved to `settings.json`
