@@ -59,10 +59,15 @@ export const findModel = (model: string): string => {
   }
   const isModel = (name: string) => /\.gguf$/i.test(name) && !/^mmproj-|-mmproj\.gguf$/i.test(name); // skip vision projectors
   const file = model
-    ? (/\.gguf$/i.test(model) ? model : `${model}.gguf`)
+    ? /\.gguf$/i.test(model)
+      ? model
+      : `${model}.gguf`
     : fs.existsSync(LLAMACPP_MODELS)
-    ? [...Deno.readDirSync(LLAMACPP_MODELS)].map((e) => e.name).filter(isModel).sort()[0]
-    : undefined;
+      ? [...Deno.readDirSync(LLAMACPP_MODELS)]
+          .map((e) => e.name)
+          .filter(isModel)
+          .sort()[0]
+      : undefined;
   if (!file || !isFile(path.join(LLAMACPP_MODELS, file))) {
     throw new Error(file ? `Model ${file} was not found in ${LLAMACPP_MODELS}.` : `No .gguf model was found in ${LLAMACPP_MODELS}.`);
   }

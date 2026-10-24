@@ -30,7 +30,7 @@ $("clear").addEventListener("click", () => $("console").replaceChildren());
 const isEngine = (el) => "engine" in el.dataset;
 const chips = (l) => [...l.querySelectorAll(".chip")].map((c) => c.dataset.value);
 // Checkboxes hold a boolean in `checked`, every other field a string in `value`
-const getValue = (f) => f.type === "checkbox" ? f.checked : f.value;
+const getValue = (f) => (f.type === "checkbox" ? f.checked : f.value);
 const setValue = (f, v) => {
   if (f.type === "checkbox") f.checked = Boolean(v);
   else f.value = v ?? "";
@@ -125,7 +125,7 @@ const setSeconvFound = (found) => {
 };
 
 // The prompt is kept while it's switched off, but greyed out to show seconv's default is used instead
-const syncPromptToggle = () => $("translatePrompt").disabled = !$("useCustomPrompt").checked;
+const syncPromptToggle = () => ($("translatePrompt").disabled = !$("useCustomPrompt").checked);
 
 const showEngine = () => {
   const e = engines[shownEngine] ?? { model: "", url: "", apiKey: "", prompt: "", additionalArgs: [] };
@@ -140,7 +140,7 @@ const showEngine = () => {
     : "Leave empty to use seconv's default";
   $("translateModel").placeholder = llamaCpp ? "Hugging Face link, user/repo:quant, or a .gguf in lib/llama.cpp/models" : "First available";
   // Only show the fields that apply to the engine (seconv rejects an API key or prompt for engines that don't take one)
-  document.querySelectorAll("[data-engines]").forEach((el) => el.hidden = !el.dataset.engines.split(" ").includes(shownEngine));
+  document.querySelectorAll("[data-engines]").forEach((el) => (el.hidden = !el.dataset.engines.split(" ").includes(shownEngine)));
 };
 
 // ---- dropdowns ----
@@ -161,9 +161,13 @@ const fillLanguages = (languages, current) => {
 const fill = ({ config, load, engines: engineNames, languages, seconvFound }) => {
   shownLoad = load;
   setSeconvFound(seconvFound);
-  fillSelect($("translateEngine"), engineNames.map((e) => ({ value: e, label: e })), config.translateEngine);
+  fillSelect(
+    $("translateEngine"),
+    engineNames.map((e) => ({ value: e, label: e })),
+    config.translateEngine,
+  );
   fillLanguages(languages, config);
-  inputs.filter((f) => f.tagName !== "SELECT" && !isEngine(f)).forEach((f) => f.value = config[f.dataset.key]);
+  inputs.filter((f) => f.tagName !== "SELECT" && !isEngine(f)).forEach((f) => (f.value = config[f.dataset.key]));
   lists.filter((l) => !isEngine(l)).forEach((l) => renderList(l, config[l.dataset.list]));
   engines = structuredClone(config.engines);
   shownEngine = config.translateEngine;
@@ -214,11 +218,15 @@ const poll = async () => {
     setSeconvFound(s.seconvFound);
     // A profile picked in the menu: show its settings
     if (s.load !== shownLoad) {
-      api("GET", "/api/config").then(fill).catch((e) => log("error", e.message));
+      api("GET", "/api/config")
+        .then(fill)
+        .catch((e) => log("error", e.message));
     }
     // An install brings that seconv's language list; watched here so the menu's "Update seconv" is covered too
     if (wasInstalling && !s.installing) {
-      api("GET", "/api/config").then((d) => fillLanguages(d.languages, read())).catch((e) => log("error", e.message));
+      api("GET", "/api/config")
+        .then((d) => fillLanguages(d.languages, read()))
+        .catch((e) => log("error", e.message));
     }
     wasInstalling = s.installing;
     const busy = s.running || s.installing || s.restoring;
@@ -228,7 +236,9 @@ const poll = async () => {
     $("installSeconv").disabled = busy;
     $("installSeconv").textContent = s.installing ? "Downloading…" : "Download latest pre-release";
     $("stop").hidden = !s.running;
-  } catch { /* server not ready yet */ }
+  } catch {
+    /* server not ready yet */
+  }
   setTimeout(poll, 500);
 };
 

@@ -53,7 +53,7 @@ const start = () => {
   if (!findSeconv()) {
     throw new Error(SECONV_NOT_FOUND);
   }
-  const controller = abort = new AbortController();
+  const controller = (abort = new AbortController());
   Object.assign(state, { running: true, done: 0, total: 0, filesDone: 0, filesTotal: 0 });
   logger.info("Starting translation...");
   const translate = async () => {
@@ -69,8 +69,8 @@ const start = () => {
   };
   translate()
     .then(() => logger.info(controller.signal.aborted ? "Translation stopped." : "Finished processing all files."))
-    .catch((e) => controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e))
-    .finally(() => state.running = false);
+    .catch((e) => (controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e)))
+    .finally(() => (state.running = false));
 };
 
 /**
@@ -193,7 +193,7 @@ if (BrowserWindow) {
   };
 
   const confirmDelete = async () => {
-    if (await ask(`confirm(${JSON.stringify(`Delete the profile "${config.name}"? This can't be undone.`)})`) === true) {
+    if ((await ask(`confirm(${JSON.stringify(`Delete the profile "${config.name}"? This can't be undone.`)})`)) === true) {
       deleteProfile();
     }
   };
@@ -201,7 +201,7 @@ if (BrowserWindow) {
   /** Asks before restoring; while the app is busy, restore() explains instead why it can't. */
   const confirmRestore = async () => {
     const question = `Restore all backups under "${config.rjPath}"? Translated files go back to their originals.`;
-    if (busyReason() || await ask(`confirm(${JSON.stringify(question)})`) === true) {
+    if (busyReason() || (await ask(`confirm(${JSON.stringify(question)})`)) === true) {
       await restore();
     }
   };

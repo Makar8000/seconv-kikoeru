@@ -19,27 +19,32 @@ export type BackupFilesByRjFolder = { [rjFolder: string]: string[] };
 export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
   const rjPathAbs = path.resolve(config.rjPath);
 
-  return Array.from(fs.expandGlobSync(`**/*.{${config.subtitleExtensions.join(",")}}`, {
-    root: config.rjPath,
-    caseInsensitive: true,
-  })).filter((walkEntry) => {
-    // Exclude anything under the tool's own metadata folder
-    return !walkEntry.path.split(path.SEPARATOR_PATTERN).includes(METADATA_FOLDER);
-  }).map((walkEntry) => {
-    // Determine the RJ code of a file
-    const filePath = path.relative(rjPathAbs, walkEntry.path);
-    return {
-      rjcode: filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath),
-      filePath,
-    };
-  }).reduce((acc, cur) => {
-    // Group files for the same RJ code together
-    if (!acc[cur.rjcode]) {
-      acc[cur.rjcode] = [];
-    }
-    acc[cur.rjcode].push(cur.filePath);
-    return acc;
-  }, {} as FilesByRjCode);
+  return Array.from(
+    fs.expandGlobSync(`**/*.{${config.subtitleExtensions.join(",")}}`, {
+      root: config.rjPath,
+      caseInsensitive: true,
+    }),
+  )
+    .filter((walkEntry) => {
+      // Exclude anything under the tool's own metadata folder
+      return !walkEntry.path.split(path.SEPARATOR_PATTERN).includes(METADATA_FOLDER);
+    })
+    .map((walkEntry) => {
+      // Determine the RJ code of a file
+      const filePath = path.relative(rjPathAbs, walkEntry.path);
+      return {
+        rjcode: filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath),
+        filePath,
+      };
+    })
+    .reduce((acc, cur) => {
+      // Group files for the same RJ code together
+      if (!acc[cur.rjcode]) {
+        acc[cur.rjcode] = [];
+      }
+      acc[cur.rjcode].push(cur.filePath);
+      return acc;
+    }, {} as FilesByRjCode);
 };
 
 /**
@@ -47,10 +52,12 @@ export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
  * lists the backed-up files within it (paths relative to the RJ folder).
  */
 export const findBackupFilesByRjFolder = (): BackupFilesByRjFolder => {
-  return Array.from(fs.expandGlobSync(`**/${METADATA_FOLDER}/${BACKUPS_FOLDER}/**/*`, {
-    root: config.rjPath,
-    includeDirs: false,
-  })).reduce((acc, walkEntry) => {
+  return Array.from(
+    fs.expandGlobSync(`**/${METADATA_FOLDER}/${BACKUPS_FOLDER}/**/*`, {
+      root: config.rjPath,
+      includeDirs: false,
+    }),
+  ).reduce((acc, walkEntry) => {
     // Determine the RJ folder that owns this backup, and the file's path relative to it
     const segments = walkEntry.path.split(path.SEPARATOR_PATTERN);
     const metadataIndex = segments.lastIndexOf(METADATA_FOLDER);

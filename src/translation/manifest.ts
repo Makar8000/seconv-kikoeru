@@ -34,13 +34,16 @@ const isTranslatedEntry = (entry: unknown): entry is TranslatedEntry => {
   }
 
   const e = entry as Record<string, unknown>;
-  return typeof e.file === "string" &&
+  return (
+    typeof e.file === "string" &&
     typeof e.timestamp === "string" &&
     typeof e.translateEngine === "string" &&
     typeof e.translateModel === "string" &&
     typeof e.translateFrom === "string" &&
     typeof e.translateTo === "string" &&
-    Array.isArray(e.additionalArgs) && e.additionalArgs.every((a) => typeof a === "string");
+    Array.isArray(e.additionalArgs) &&
+    e.additionalArgs.every((a) => typeof a === "string")
+  );
 };
 
 /** Type guard that checks whether a value parsed from JSON matches the shape of a `TranslationErrorEntry`. */

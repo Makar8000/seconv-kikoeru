@@ -44,7 +44,7 @@ const probe = async (origin: string): Promise<"llama.cpp" | "other" | "none"> =>
 
 /** Waits until the llama.cpp server at `origin` has loaded its model. */
 const waitUntilReady = async (origin: string, signal: AbortSignal) => {
-  for (const deadline = Date.now() + READY_TIMEOUT; Date.now() < deadline;) {
+  for (const deadline = Date.now() + READY_TIMEOUT; Date.now() < deadline; ) {
     signal.throwIfAborted();
     const res = await fetch(`${origin}/health`, { signal }).catch(() => undefined);
     await res?.body?.cancel();
@@ -68,12 +68,14 @@ const llamaDownload = (args: string[], signal: AbortSignal) =>
       env,
       signal,
     });
-    let out = "", err = "";
-    child.stdout?.on("data", (data) => out += data);
-    child.stderr?.on("data", (data) => err = (err + data).slice(-2000));
+    let out = "",
+      err = "";
+    child.stdout?.on("data", (data) => (out += data));
+    child.stderr?.on("data", (data) => (err = (err + data).slice(-2000)));
     child.on("error", reject);
     child.on("close", (code) =>
-      code === 0 ? resolve(out.trim().split(/\r?\n/).pop()!) : reject(new Error(`llama.cpp couldn't get the model. ${err.trim()}`)));
+      code === 0 ? resolve(out.trim().split(/\r?\n/).pop()!) : reject(new Error(`llama.cpp couldn't get the model. ${err.trim()}`)),
+    );
   });
 
 /**
@@ -125,22 +127,23 @@ const familyFlags = (model: string) => {
 
 /** llama-server's default sampling, from the llamacpp settings. seconv sends no sampling of its own when it's given a URL. */
 const samplingFlags = ({ temperature, topP, topK, repeatPenalty }: EngineConfig) =>
-  Object.entries({ "--temp": temperature, "--top-p": topP, "--top-k": topK, "--repeat-penalty": repeatPenalty })
-    .flatMap(([flag, value]) => value === undefined ? [] : [flag, String(value)]);
+  Object.entries({ "--temp": temperature, "--top-p": topP, "--top-k": topK, "--repeat-penalty": repeatPenalty }).flatMap(([flag, value]) =>
+    value === undefined ? [] : [flag, String(value)],
+  );
 
 /** Starts lib/llama.cpp/bin/llama-server with `model` on 127.0.0.1:`port` and waits until it's ready. */
 const startServer = async (model: string, port: number, signal: AbortSignal) => {
   writeLlamaCppConfig();
   // seconv's own launch flags: every layer on the GPU (when the build has one), one 8192-token slot, prompt cache reuse
   const args = ["-m", model, "--host", "127.0.0.1", "--port", String(port), "-ngl", "99", "-c", "8192", "-np", "1", "--swa-full"];
-  const child = server = spawn(findLlamaServer()!, [...args, "--cache-reuse", "256", ...familyFlags(model), ...samplingFlags(engineConfig())], {
+  const child = (server = spawn(findLlamaServer()!, [...args, "--cache-reuse", "256", ...familyFlags(model), ...samplingFlags(engineConfig())], {
     windowsHide: true,
     cwd: LLAMACPP_BIN,
     env: llamaCppEnv(Deno.env.toObject()),
-  });
+  }));
   // Its output stays in memory, for the error message if it doesn't start
   let output = "";
-  const keep = (data: unknown) => output = (output + data).slice(-2000);
+  const keep = (data: unknown) => (output = (output + data).slice(-2000));
   child.stdout?.on("data", keep);
   child.stderr?.on("data", keep);
   const exited = new Promise<never>((_, reject) => {

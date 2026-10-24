@@ -52,11 +52,16 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
     }
     logger.info(`\nParsing ${rjcode}...`);
     try {
-      const errors = await translateFiles(rjcode, files, (lines) => {
-        progress.done += lines;
-        progress.filesDone++;
-        onProgress({ ...progress });
-      }, signal);
+      const errors = await translateFiles(
+        rjcode,
+        files,
+        (lines) => {
+          progress.done += lines;
+          progress.filesDone++;
+          onProgress({ ...progress });
+        },
+        signal,
+      );
       allErrors.push(...errors.map((error) => ({ rjcode, error })));
       logger.info(`Completed ${rjcode}`);
     } catch (e) {

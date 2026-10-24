@@ -83,7 +83,7 @@ const extractTarGz = async (archive: string, dest: string) => {
 };
 
 /** Extracts a downloaded `.zip` / `.tar.gz` archive into `dest`. */
-export const extractArchive = (archive: string, dest: string) => archive.endsWith(".zip") ? extractZip(archive, dest) : extractTarGz(archive, dest);
+export const extractArchive = (archive: string, dest: string) => (archive.endsWith(".zip") ? extractZip(archive, dest) : extractTarGz(archive, dest));
 
 /** Pulls the `MakePair("English", "en")` entries out of Subtitle Edit's `ChatGptTranslate.cs`. */
 export const parseLanguages = (source: string) =>
@@ -151,7 +151,12 @@ const installAssets = async (dir: string, binary: string, tag: string, assets: A
     }
 
     const binaryPath = path.join(staging, binary);
-    if (!(await Deno.stat(binaryPath).then((s) => s.isFile, () => false))) {
+    if (
+      !(await Deno.stat(binaryPath).then(
+        (s) => s.isFile,
+        () => false,
+      ))
+    ) {
       throw new Error(`The downloaded archive does not contain ${binary}.`);
     }
     if (Deno.build.os !== "windows") {
@@ -191,16 +196,18 @@ export const installLlamaCpp = async (signal?: AbortSignal): Promise<string> => 
   const arch = { x86_64: "x64", aarch64: "arm64" }[Deno.build.arch as string];
   // nvcuda.dll comes with the NVIDIA driver
   const nvcuda = path.join(Deno.env.get("SystemRoot") ?? "C:\\Windows", "System32", "nvcuda.dll");
-  const cuda = await Deno.stat(nvcuda).then((s) => s.isFile, () => false);
+  const cuda = await Deno.stat(nvcuda).then(
+    (s) => s.isFile,
+    () => false,
+  );
   const build = new RegExp(`^llama-b\\d+-bin-win-${cuda ? "cuda-(13\\.\\d+)" : "cpu"}-${arch}\\.zip$`);
   logger.info(`Looking up the latest llama.cpp ${cuda ? "CUDA" : "CPU"} build...`);
 
   for (const release of await fetchReleases(LLAMACPP_RELEASES_API, signal)) {
     const asset = release.assets.find((a) => build.test(a.name));
     // The CUDA build needs the CUDA runtime of the same version, which is published as a separate zip
-    const runtime = asset && cuda
-      ? release.assets.find((a) => a.name === `cudart-llama-bin-win-cuda-${build.exec(asset.name)![1]}-${arch}.zip`)
-      : undefined;
+    const runtime =
+      asset && cuda ? release.assets.find((a) => a.name === `cudart-llama-bin-win-cuda-${build.exec(asset.name)![1]}-${arch}.zip`) : undefined;
     if (asset && (!cuda || runtime)) {
       await installAssets(LLAMACPP_BIN, LLAMACPP_SERVER, release.tag_name, runtime ? [asset, runtime] : [asset], signal);
       await Deno.mkdir(LLAMACPP_MODELS, { recursive: true });

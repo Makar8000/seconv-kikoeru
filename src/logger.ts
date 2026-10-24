@@ -12,7 +12,7 @@ let nextId = 1;
 
 // deno-lint-ignore no-explicit-any
 const record = (level: LogEntry["level"], args: any[]) => {
-  const text = args.map((a) => (a instanceof Error ? a.stack ?? a.message : typeof a === "string" ? a : Deno.inspect(a))).join(" ");
+  const text = args.map((a) => (a instanceof Error ? (a.stack ?? a.message) : typeof a === "string" ? a : Deno.inspect(a))).join(" ");
   entries.push({ id: nextId++, level, text });
   if (entries.length > MAX_ENTRIES) {
     entries.shift();

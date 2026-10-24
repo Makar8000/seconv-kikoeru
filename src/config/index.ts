@@ -94,7 +94,13 @@ const appPath = path.resolve("settings.json");
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
 const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
-const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => x.trim()).filter((x) => x) : []);
+const list = (v: unknown) =>
+  Array.isArray(v)
+    ? v
+        .filter((x) => typeof x === "string")
+        .map((x) => x.trim())
+        .filter((x) => x)
+    : [];
 // The app's number fields send strings
 const num = (v: unknown, integer = false) => {
   const n = typeof v === "string" && v.trim() ? Number(v) : v;
@@ -157,7 +163,9 @@ export const listProfiles = () => {
       try {
         const raw = JSON.parse(Deno.readTextFileSync(path.join(PROFILES_DIR, entry.name)));
         name = isRecord(raw) ? str(raw.name) : undefined;
-      } catch { /* loading it says what's wrong */ }
+      } catch {
+        /* loading it says what's wrong */
+      }
       profiles.push({ file: entry.name, name: name || fileStem(entry.name) });
     }
   } catch (e) {
@@ -190,7 +198,11 @@ const writeApp = (profile: string) => Deno.writeTextFileSync(appPath, JSON.strin
  * is local-copy.json), with -2, -3, ... when another profile has that file. `own` is the profile's current file.
  */
 const fileFor = (name: string, own = "") => {
-  const kebab = name.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "profile";
+  const kebab =
+    name
+      .toLowerCase()
+      .replace(/[^\p{L}\p{M}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "") || "profile";
   // Windows reserves these device names, whatever the extension
   const base = /^(con|prn|aux|nul|com\d|lpt\d)$/.test(kebab) ? `${kebab}-profile` : kebab;
   const taken = new Set(listProfiles().map((p) => p.file.toLowerCase()));
