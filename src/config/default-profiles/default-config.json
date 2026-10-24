@@ -1,5 +1,5 @@
 {
-  "name": "Default",
+  "name": "Local llama.cpp",
   "translateEngine": "llamacpp",
   "translateFrom": "",
   "translateTo": "en",

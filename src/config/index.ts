@@ -1,13 +1,13 @@
 import * as path from "@std/path";
 import { logger } from "../logger.ts";
 import { SECONV_LANGUAGES } from "../seconv/locate.ts";
-import defaultConfig from "./default-config.json" with { type: "json" };
-import openRouterProfile from "./openrouter-profile.json" with { type: "json" };
+import defaultConfig from "./default-profiles/default-config.json" with { type: "json" };
+import openRouterProfile from "./default-profiles/openrouter.json" with { type: "json" };
 import bundledLanguages from "./languages.json" with { type: "json" };
 
 /**
  * A profile's settings, saved in `profiles/` (in the current working directory) as a .json file named after the profile.
- * See `default-config.json` for the settings of a new profile.
+ * See `default-profiles/default-config.json` for the settings of a new profile.
  *
  * SeConv options: https://subtitleedit.github.io/subtitleedit/reference/command-line.html
  * - `name`: the profile's name in the Profile menu
