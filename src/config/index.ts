@@ -3,6 +3,7 @@ import { logger } from "../logger.ts";
 import { SECONV_LANGUAGES } from "../seconv/locate.ts";
 import defaultConfig from "./default-profiles/default-config.json" with { type: "json" };
 import openRouterProfile from "./default-profiles/openrouter.json" with { type: "json" };
+import zeroGProfile from "./default-profiles/0g-private-computer.json" with { type: "json" };
 import bundledLanguages from "./languages.json" with { type: "json" };
 
 /**
@@ -241,6 +242,7 @@ const load = (): Config => {
   if (!file) {
     file = createProfile(normalize({}));
     createProfile(normalize(openRouterProfile));
+    createProfile(normalize(zeroGProfile));
   }
   if (file !== wanted) {
     writeApp(file);
