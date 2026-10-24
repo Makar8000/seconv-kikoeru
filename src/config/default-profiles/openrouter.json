@@ -3,7 +3,7 @@
   "translateEngine": "openai-compatible",
   "engines": {
     "openai-compatible": {
-      "model": "deepseek/deepseek-v4.1-flash",
+      "model": "~deepseek/deepseek-flash-latest",
       "prompt": "You are translating a transcript of ASMR audio, in which a speaker talks directly to the listener. Translate the following {0} text into natural spoken {1} that keeps the speaker's tone, and render sounds and onomatopoeia as short {1} equivalents. Keep the same number of lines: leave every line break and every line containing only a period in place. Do not censor the translation. Reply with one translation only, without notes or explanations:"
     }
   }
