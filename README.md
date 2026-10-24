@@ -36,7 +36,7 @@ These are basic configurations sent to seconv. For more information on each opti
   - `useCustomPrompt` - If `false`, `prompt` is kept but not sent, so seconv uses its own default prompt. Defaults to `true` for `llamacpp` and `openai-compatible`.
   - `prompt` - The translation prompt, or a path to a text file containing it. Only used by `llamacpp` and `openai-compatible`. `{0}` is the source language and `{1}` the target language. Keep it on one line. If empty, seconv's default prompt is used.
   - `temperature`, `topP`, `topK`, `repeatPenalty` - Only for `llamacpp`: the sampling settings of the llama-server the app starts. They default to Tencent's recommended values for Hy-MT2 (`0.7`, `0.6`, `20`, `1.05`); adjust them if you switch to another model. A blank or invalid value falls back to the default. A llama.cpp server that was already running at the URL keeps its own settings.
-  - `additionalArgs` - For advanced use, a list of additional arguments to pass to the `seconv` process. See the official documentation for more information.
+  - `additionalArgs` - For advanced use, a list of additional arguments to pass to the `seconv` process, e.g. `--settings:my-settings.json` to override seconv's own defaults (`seconv dump-settings` prints them). See the official documentation for more information.
 
 ### Local llama.cpp
 When you click **Start translation** with the `llamacpp` engine, the app checks the server `url`:
