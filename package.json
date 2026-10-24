@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "bun --watch src/main.ts",
     "build": "bun build --compile --windows-hide-console --asset src/ui src/main.ts --outfile bin/seconv-kikoeru/seconv-kikoeru && cp node_modules/@webviewjs/webview-win32-x64-msvc/webview.win32-x64-msvc.node bin/seconv-kikoeru/",
+    "check": "tsc",
     "lint": "biome check",
-    "fix": "biome check --write"
+    "lint:fix": "biome check --write"
   },
   "dependencies": {
     "@webviewjs/webview": "^0.4.9",

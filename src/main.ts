@@ -258,13 +258,27 @@ const inPage = (call: string) => view.evaluateScript(call);
 // Failures are logged (and shown in the console panel) by install()/installLlama() and the API handlers
 app.on("custom-menu-click", ({ customMenuEvent }) => {
   const id = customMenuEvent?.id;
-  if (id === "update-seconv") install().catch(() => {});
-  if (id === "update-llamacpp") installLlama().catch(() => {});
-  if (id === "restore-backups") inPage("confirmRestore()");
-  if (id === "profile-new") inPage(`askProfile("new", ${JSON.stringify(uniqueName("New profile"))})`);
-  if (id === "profile-duplicate") inPage(`askProfile("duplicate", ${JSON.stringify(uniqueName(`${config.name} (copy)`))})`);
-  if (id === "profile-rename") inPage(`askProfile("rename", ${JSON.stringify(config.name)})`);
-  if (id === "profile-delete") inPage(`askProfile("delete", ${JSON.stringify(config.name)})`);
+  if (id === "update-seconv") {
+    install().catch(() => {});
+  }
+  if (id === "update-llamacpp") {
+    installLlama().catch(() => {});
+  }
+  if (id === "restore-backups") {
+    inPage("confirmRestore()");
+  }
+  if (id === "profile-new") {
+    inPage(`askProfile("new", ${JSON.stringify(uniqueName("New profile"))})`);
+  }
+  if (id === "profile-duplicate") {
+    inPage(`askProfile("duplicate", ${JSON.stringify(uniqueName(`${config.name} (copy)`))})`);
+  }
+  if (id === "profile-rename") {
+    inPage(`askProfile("rename", ${JSON.stringify(config.name)})`);
+  }
+  if (id === "profile-delete") {
+    inPage(`askProfile("delete", ${JSON.stringify(config.name)})`);
+  }
 });
 app.on("window-close-requested", () => {
   app.exit();

@@ -72,6 +72,6 @@ This project requires [Bun](https://bun.com/) 1.4+.
 1) `bun install`
 2) `bun run dev` (runs the app, restarting it when a source file changes) or `bun run build` (builds the Windows app into `bin/seconv-kikoeru/`: the executable and the webview addon next to it)
 
-`bun check` type-checks the project, `bun run lint` runs Biome and `bun run fix` applies its fixes.
+`bun run check` type-checks the project with `tsc`, `bun run lint` runs Biome (formatter and linter) and `bun run lint:fix` applies its fixes.
 
 The window is the system WebView, through [@webviewjs/webview](https://github.com/webviewjs/webview): WebView2 on Windows, WebKitGTK 4.1 on Linux, WebKit on macOS. The browser data it keeps (cache, cookies) goes to `.webview2/` inside the app folder.

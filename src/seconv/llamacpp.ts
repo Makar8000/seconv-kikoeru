@@ -105,7 +105,9 @@ const resolveModel = async (model: string, signal: AbortSignal) => {
     // A model that's already downloaded mustn't cost a request to Hugging Face
     return await llamaDownload([...args, "--offline"], signal);
   } catch (e) {
-    if (signal.aborted) throw e;
+    if (signal.aborted) {
+      throw e;
+    }
   }
 
   // llama.cpp's downloader can't write past Windows' 260-character path limit, and its files sit over 100 characters

@@ -9,7 +9,9 @@ const api = async (method, path, body) => {
     body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error);
+  if (!res.ok) {
+    throw new Error(data.error);
+  }
   return data;
 };
 
@@ -20,7 +22,9 @@ const log = (level, text) => {
   line.className = level;
   line.textContent = text;
   c.append(line);
-  if (stick) c.scrollTop = c.scrollHeight;
+  if (stick) {
+    c.scrollTop = c.scrollHeight;
+  }
 };
 $("clear").addEventListener("click", () => $("console").replaceChildren());
 
@@ -32,8 +36,11 @@ const chips = (l) => [...l.querySelectorAll(".chip")].map((c) => c.dataset.value
 // Checkboxes hold a boolean in `checked`, every other field a string in `value`
 const getValue = (f) => (f.type === "checkbox" ? f.checked : f.value);
 const setValue = (f, v) => {
-  if (f.type === "checkbox") f.checked = Boolean(v);
-  else f.value = v ?? "";
+  if (f.type === "checkbox") {
+    f.checked = Boolean(v);
+  } else {
+    f.value = v ?? "";
+  }
 };
 let engines = {};
 let shownEngine = "";
@@ -61,7 +68,9 @@ const save = () => {
       const { config } = await api("POST", "/api/config", read());
       // Show anything the server corrected (e.g. a blank required field), without touching the field being edited
       inputs.forEach((f) => {
-        if (f !== document.activeElement) setValue(f, (isEngine(f) ? config.engines[shownEngine] : config)?.[f.dataset.key]);
+        if (f !== document.activeElement) {
+          setValue(f, (isEngine(f) ? config.engines[shownEngine] : config)?.[f.dataset.key]);
+        }
       });
     } catch (e) {
       log("error", e.message);
@@ -72,7 +81,9 @@ const save = () => {
 // ---- chip lists (additional args, file extensions) ----
 const addChip = (l, value) => {
   value = value.trim();
-  if (!value || [...l.querySelectorAll(".chip")].some((c) => c.dataset.value === value)) return false;
+  if (!value || [...l.querySelectorAll(".chip")].some((c) => c.dataset.value === value)) {
+    return false;
+  }
   const chip = document.createElement("span");
   chip.className = "chip";
   chip.dataset.value = value;
@@ -98,7 +109,9 @@ const renderList = (l, values) => {
   input.placeholder = l.dataset.placeholder;
   input.spellcheck = false;
   const commit = () => {
-    if (addChip(l, input.value)) save();
+    if (addChip(l, input.value)) {
+      save();
+    }
     input.value = "";
   };
   input.addEventListener("keydown", (e) => {
@@ -217,11 +230,15 @@ const profileAction = async (body) => {
 $("profile").addEventListener("change", () => profileAction({ action: "switch", file: $("profile").value }));
 globalThis.askProfile = (action, suggested) => {
   if (action === "delete") {
-    if (confirm(`Delete the profile "${suggested}"? This can't be undone.`)) profileAction({ action });
+    if (confirm(`Delete the profile "${suggested}"? This can't be undone.`)) {
+      profileAction({ action });
+    }
     return;
   }
   const name = prompt("Profile name:", suggested);
-  if (name?.trim()) profileAction({ action, name: name.trim() });
+  if (name?.trim()) {
+    profileAction({ action, name: name.trim() });
+  }
 };
 globalThis.confirmRestore = () => {
   if (confirm(`Restore all backups under "${$("rjPath").value}"? Translated files go back to their originals.`)) {

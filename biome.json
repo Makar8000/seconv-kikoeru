@@ -6,5 +6,12 @@
   "formatter": {
     "indentStyle": "space",
     "lineWidth": 150
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "useBlockStatements": "error"
+      }
+    }
   }
 }
