@@ -1,9 +1,18 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import * as path from "@std/path";
+import path from "node:path";
 import { config, type EngineConfig, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
 import { installLlamaCpp } from "./installer.ts";
-import { findLlamaServer, findModel, LLAMACPP_BIN, LLAMACPP_MODELS, LLAMACPP_TOOL, llamaCppEnv, writeLlamaCppConfig } from "./locate.ts";
+import {
+  findLlamaServer,
+  findModel,
+  LLAMACPP_BIN,
+  LLAMACPP_MODELS,
+  LLAMACPP_SERVER,
+  LLAMACPP_TOOL,
+  llamaCppEnv,
+  writeLlamaCppConfig,
+} from "./locate.ts";
 
 /** The llamacpp engine's server when its URL setting is empty. */
 export const DEFAULT_LLAMACPP_URL = "http://127.0.0.1:8080/";
@@ -61,20 +70,24 @@ const llamaDownload = (args: string[], signal: AbortSignal) =>
   new Promise<string>((resolve, reject) => {
     // Into lib/llama.cpp/models, in Hugging Face's cache layout. Its config home is bin/, which holds no config.ini:
     // ours turns on offline mode.
-    const env = { ...llamaCppEnv(Deno.env.toObject(), LLAMACPP_BIN), LLAMA_CACHE: LLAMACPP_MODELS };
+    const env = { ...llamaCppEnv(process.env, LLAMACPP_BIN), LLAMA_CACHE: LLAMACPP_MODELS };
     const child = spawn(path.join(LLAMACPP_BIN, LLAMACPP_TOOL), ["download", ...args, "--no-mmproj"], {
       windowsHide: true,
       cwd: LLAMACPP_BIN,
       env,
       signal,
     });
-    let out = "",
-      err = "";
-    child.stdout?.on("data", (data) => (out += data));
-    child.stderr?.on("data", (data) => (err = (err + data).slice(-2000)));
+    let out = "";
+    let err = "";
+    child.stdout?.on("data", (data) => {
+      out += data;
+    });
+    child.stderr?.on("data", (data) => {
+      err = (err + data).slice(-2000);
+    });
     child.on("error", reject);
     child.on("close", (code) =>
-      code === 0 ? resolve(out.trim().split(/\r?\n/).pop()!) : reject(new Error(`llama.cpp couldn't get the model. ${err.trim()}`)),
+      code === 0 ? resolve(out.trim().split(/\r?\n/).pop() ?? "") : reject(new Error(`llama.cpp couldn't get the model. ${err.trim()}`)),
     );
   });
 
@@ -99,7 +112,7 @@ const resolveModel = async (model: string, signal: AbortSignal) => {
   // deep: models--<user>--<repo>\blobs\<64-character hash>.downloadInProgress
   const repo = url ? url[1] : model.split(":")[0];
   const deepest = path.join(LLAMACPP_MODELS, `models--${repo.replace("/", "--")}`, "blobs", `${"0".repeat(64)}.downloadInProgress`);
-  if (Deno.build.os === "windows" && deepest.length > 259) {
+  if (process.platform === "win32" && deepest.length > 259) {
     throw new Error(`The app's folder path is too long for llama.cpp's downloader. Move the app to a shorter path, like C:\\seconv-kikoeru.`);
   }
   logger.info(`Downloading ${model} into ${LLAMACPP_MODELS}, this may take a while...`);
@@ -136,14 +149,22 @@ const startServer = async (model: string, port: number, signal: AbortSignal) => 
   writeLlamaCppConfig();
   // seconv's own launch flags: every layer on the GPU (when the build has one), one 8192-token slot, prompt cache reuse
   const args = ["-m", model, "--host", "127.0.0.1", "--port", String(port), "-ngl", "99", "-c", "8192", "-np", "1", "--swa-full"];
-  const child = (server = spawn(findLlamaServer()!, [...args, "--cache-reuse", "256", ...familyFlags(model), ...samplingFlags(engineConfig())], {
-    windowsHide: true,
-    cwd: LLAMACPP_BIN,
-    env: llamaCppEnv(Deno.env.toObject()),
-  }));
+  // openLlamaCpp installed llama.cpp if it was missing
+  const child = spawn(
+    findLlamaServer() ?? LLAMACPP_SERVER,
+    [...args, "--cache-reuse", "256", ...familyFlags(model), ...samplingFlags(engineConfig())],
+    {
+      windowsHide: true,
+      cwd: LLAMACPP_BIN,
+      env: llamaCppEnv(process.env),
+    },
+  );
+  server = child;
   // Its output stays in memory, for the error message if it doesn't start
   let output = "";
-  const keep = (data: unknown) => (output = (output + data).slice(-2000));
+  const keep = (data: unknown) => {
+    output = (output + data).slice(-2000);
+  };
   child.stdout?.on("data", keep);
   child.stderr?.on("data", keep);
   const exited = new Promise<never>((_, reject) => {

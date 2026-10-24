@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "types": ["bun"],
+    "module": "preserve",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  }
+}

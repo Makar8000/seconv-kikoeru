@@ -18,16 +18,16 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v7
 
-      - name: Install Deno
-        uses: denoland/setup-deno@v2
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          deno-version: v2.x
+          bun-version: "1.4.4"
 
       - name: Install Dependencies
-        run: "deno install"
+        run: bun install --frozen-lockfile
 
       - name: Compile Executable
-        run: "deno task build"
+        run: bun run build
 
       - name: Create Artifact
         run: |

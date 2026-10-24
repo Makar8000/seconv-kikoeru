@@ -1,10 +1,10 @@
-import * as fs from "@std/fs";
-import * as path from "@std/path";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { config, engineConfig } from "../config/index.ts";
-import { BACKUPS_FOLDER, METADATA_FOLDER } from "./fileDiscovery.ts";
 import { logger } from "../logger.ts";
-import { loadManifest, removeByFile, saveManifest, type TranslatedEntry, type TranslationErrorEntry, upsertByFile } from "./manifest.ts";
 import { translateWithSeConv } from "../seconv/convert.ts";
+import { BACKUPS_FOLDER, METADATA_FOLDER } from "./fileDiscovery.ts";
+import { loadManifest, removeByFile, saveManifest, type TranslatedEntry, type TranslationErrorEntry, upsertByFile } from "./manifest.ts";
 
 const MANIFEST_FILENAME = "manifest.json";
 
@@ -25,17 +25,14 @@ const backupFile = (rjFolder: string, relativeFile: string) => {
   const relativeToRj = path.relative(rjFolder, path.join(config.rjPath, relativeFile));
   const bakFilePath = path.join(rjFolder, METADATA_FOLDER, BACKUPS_FOLDER, relativeToRj);
 
-  if (fs.existsSync(bakFilePath)) {
+  if (existsSync(bakFilePath)) {
     logger.info(`Backup already exists for ${relativeFile}, skipping`);
     return;
   }
 
   logger.info(`Backing up ${relativeFile}`);
-  const bakFolder = path.dirname(bakFilePath);
-  if (!fs.existsSync(bakFolder)) {
-    Deno.mkdirSync(bakFolder, { recursive: true });
-  }
-  Deno.copyFileSync(path.join(config.rjPath, relativeFile), bakFilePath);
+  mkdirSync(path.dirname(bakFilePath), { recursive: true });
+  copyFileSync(path.join(config.rjPath, relativeFile), bakFilePath);
 };
 
 /** The `files` (paths relative to `config.rjPath`) of RJ folder `rjcode` not yet recorded as translated in its manifest. */

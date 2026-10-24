@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import * as path from "@std/path";
+import path from "node:path";
 import { config, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
-import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
 import { llamaCppUrl, usesLlamaCpp } from "./llamacpp.ts";
+import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
 
 export type SeConvFileResult = { success: boolean; error?: string };
 
@@ -29,9 +29,9 @@ type SeConvJsonOutput = {
 const HEARTBEAT_INTERVAL = 10_000;
 
 /**
- * Runs `exe` and collects its output. Uses node:child_process because it can hide the console window Windows would
- * otherwise open for seconv (a console program) when started from this windowless desktop app; Deno.Command can't.
- * stdin is closed and stderr is captured, as the packaged app has no console to inherit.
+ * Runs `exe` and collects its output. `windowsHide` keeps Windows from opening a console window for seconv (a console
+ * program) when it's started from this windowless desktop app. stdin is closed and stderr is captured, as the packaged
+ * app has no console to inherit.
  */
 const run = (exe: string, args: string[], signal?: AbortSignal) =>
   new Promise<{ code: number | null; signal: string | null; stdout: string; stderr: string }>((resolve, reject) => {

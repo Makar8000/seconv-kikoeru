@@ -1,5 +1,5 @@
-import * as fs from "@std/fs";
-import * as path from "@std/path";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { config } from "../config/index.ts";
 
 export const METADATA_FOLDER = ".trans-metadata";
@@ -11,40 +11,42 @@ export type FilesByRjCode = { [rjcode: string]: string[] };
 /** A map of RJ folder (absolute path) to the list of backed-up file paths (relative to that folder) found for it. */
 export type BackupFilesByRjFolder = { [rjFolder: string]: string[] };
 
+/** Every file under `config.rjPath`, as path segments relative to it. Dot folders are included: the metadata folder is one. */
+const walk = (): string[][] => {
+  const root = path.resolve(config.rjPath);
+  // Bun.Glob throws on a missing folder
+  if (!existsSync(root)) {
+    return [];
+  }
+  return [...new Bun.Glob("**/*").scanSync({ cwd: root, dot: true })].map((file) => file.split(/[\\/]/));
+};
+
 /**
  * Recursively finds all subtitle files (matching `config.subtitleExtensions`, case-insensitively)
  * under `config.rjPath`, excluding anything under the tool's own metadata folder, and groups
  * them by RJ code (or by parent folder, if no RJ code can be determined from the path).
  */
 export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
-  const rjPathAbs = path.resolve(config.rjPath);
-
-  return Array.from(
-    fs.expandGlobSync(`**/*.{${config.subtitleExtensions.join(",")}}`, {
-      root: config.rjPath,
-      caseInsensitive: true,
-    }),
-  )
-    .filter((walkEntry) => {
-      // Exclude anything under the tool's own metadata folder
-      return !walkEntry.path.split(path.SEPARATOR_PATTERN).includes(METADATA_FOLDER);
-    })
-    .map((walkEntry) => {
-      // Determine the RJ code of a file
-      const filePath = path.relative(rjPathAbs, walkEntry.path);
-      return {
-        rjcode: filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath),
-        filePath,
-      };
-    })
-    .reduce((acc, cur) => {
-      // Group files for the same RJ code together
-      if (!acc[cur.rjcode]) {
-        acc[cur.rjcode] = [];
-      }
-      acc[cur.rjcode].push(cur.filePath);
-      return acc;
-    }, {} as FilesByRjCode);
+  const extensions = new Set(config.subtitleExtensions.map((e) => e.toLowerCase()));
+  const files: FilesByRjCode = {};
+  for (const segments of walk()) {
+    if (
+      segments.includes(METADATA_FOLDER) ||
+      !extensions.has(
+        path
+          .extname(segments.at(-1) ?? "")
+          .slice(1)
+          .toLowerCase(),
+      )
+    ) {
+      continue;
+    }
+    const filePath = segments.join(path.sep);
+    const rjcode = filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath);
+    files[rjcode] ??= [];
+    files[rjcode].push(filePath);
+  }
+  return files;
 };
 
 /**
@@ -52,22 +54,17 @@ export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
  * lists the backed-up files within it (paths relative to the RJ folder).
  */
 export const findBackupFilesByRjFolder = (): BackupFilesByRjFolder => {
-  return Array.from(
-    fs.expandGlobSync(`**/${METADATA_FOLDER}/${BACKUPS_FOLDER}/**/*`, {
-      root: config.rjPath,
-      includeDirs: false,
-    }),
-  ).reduce((acc, walkEntry) => {
-    // Determine the RJ folder that owns this backup, and the file's path relative to it
-    const segments = walkEntry.path.split(path.SEPARATOR_PATTERN);
+  const root = path.resolve(config.rjPath);
+  const files: BackupFilesByRjFolder = {};
+  for (const segments of walk()) {
+    // The RJ folder owns the metadata folder; the backup's path relative to it follows `backups/`
     const metadataIndex = segments.lastIndexOf(METADATA_FOLDER);
-    const rjFolder = segments.slice(0, metadataIndex).join(path.SEPARATOR);
-    const relativeToRj = segments.slice(metadataIndex + 2).join(path.SEPARATOR);
-
-    if (!acc[rjFolder]) {
-      acc[rjFolder] = [];
+    if (metadataIndex < 0 || segments[metadataIndex + 1] !== BACKUPS_FOLDER || segments.length < metadataIndex + 3) {
+      continue;
     }
-    acc[rjFolder].push(relativeToRj);
-    return acc;
-  }, {} as BackupFilesByRjFolder);
+    const rjFolder = path.join(root, ...segments.slice(0, metadataIndex));
+    files[rjFolder] ??= [];
+    files[rjFolder].push(segments.slice(metadataIndex + 2).join(path.sep));
+  }
+  return files;
 };

@@ -113,7 +113,9 @@ const renderList = (l, values) => {
   input.addEventListener("blur", commit);
   l.append(input);
   l.addEventListener("click", (e) => e.target === l && input.focus());
-  values.forEach((v) => addChip(l, v));
+  for (const v of values) {
+    addChip(l, v);
+  }
 };
 
 // seconv must be in lib/seconv/; the server tells us whether it is
@@ -125,12 +127,18 @@ const setSeconvFound = (found) => {
 };
 
 // The prompt is kept while it's switched off, but greyed out to show seconv's default is used instead
-const syncPromptToggle = () => ($("translatePrompt").disabled = !$("useCustomPrompt").checked);
+const syncPromptToggle = () => {
+  $("translatePrompt").disabled = !$("useCustomPrompt").checked;
+};
 
 const showEngine = () => {
   const e = engines[shownEngine] ?? { model: "", url: "", apiKey: "", prompt: "", additionalArgs: [] };
-  inputs.filter(isEngine).forEach((f) => setValue(f, e[f.dataset.key]));
-  lists.filter(isEngine).forEach((l) => renderList(l, e[l.dataset.list]));
+  for (const f of inputs.filter(isEngine)) {
+    setValue(f, e[f.dataset.key]);
+  }
+  for (const l of lists.filter(isEngine)) {
+    renderList(l, e[l.dataset.list]);
+  }
   syncPromptToggle();
   // llama.cpp: the app uses a llama.cpp server running at the URL, or starts one there; other engines fall back to
   // seconv's default URL
@@ -140,7 +148,9 @@ const showEngine = () => {
     : "Leave empty to use seconv's default";
   $("translateModel").placeholder = llamaCpp ? "Hugging Face link, user/repo:quant, or a .gguf in lib/llama.cpp/models" : "First available";
   // Only show the fields that apply to the engine (seconv rejects an API key or prompt for engines that don't take one)
-  document.querySelectorAll("[data-engines]").forEach((el) => (el.hidden = !el.dataset.engines.split(" ").includes(shownEngine)));
+  for (const el of document.querySelectorAll("[data-engines]")) {
+    el.hidden = !el.dataset.engines.split(" ").includes(shownEngine);
+  }
 };
 
 // ---- dropdowns ----
@@ -158,29 +168,66 @@ const fillLanguages = (languages, current) => {
   fillSelect($("translateTo"), langs, current.translateTo);
 };
 
-const fill = ({ config, load, engines: engineNames, languages, seconvFound }) => {
+const fill = ({ config, load, engines: engineNames, languages, seconvFound, profiles, profile }) => {
   shownLoad = load;
   setSeconvFound(seconvFound);
+  fillSelect(
+    $("profile"),
+    profiles.map((p) => ({ value: p.file, label: p.name })),
+    profile,
+  );
   fillSelect(
     $("translateEngine"),
     engineNames.map((e) => ({ value: e, label: e })),
     config.translateEngine,
   );
   fillLanguages(languages, config);
-  inputs.filter((f) => f.tagName !== "SELECT" && !isEngine(f)).forEach((f) => (f.value = config[f.dataset.key]));
-  lists.filter((l) => !isEngine(l)).forEach((l) => renderList(l, config[l.dataset.list]));
+  for (const f of inputs.filter((f) => f.tagName !== "SELECT" && !isEngine(f))) {
+    f.value = config[f.dataset.key];
+  }
+  for (const l of lists.filter((l) => !isEngine(l))) {
+    renderList(l, config[l.dataset.list]);
+  }
   engines = structuredClone(config.engines);
   shownEngine = config.translateEngine;
   showEngine();
 };
 
-inputs.forEach((f) => f.addEventListener(f.tagName === "SELECT" || f.type === "checkbox" ? "change" : "input", save));
+for (const f of inputs) {
+  f.addEventListener(f.tagName === "SELECT" || f.type === "checkbox" ? "change" : "input", save);
+}
 $("useCustomPrompt").addEventListener("change", syncPromptToggle);
 $("translateEngine").addEventListener("change", () => {
   engines[shownEngine] = readEngine(); // keep what was typed for the engine we're leaving
   shownEngine = $("translateEngine").value;
   showEngine();
 });
+
+// ---- profiles ----
+// The window's Profile menu can't change once the window exists, so the list is the select in the header, and the
+// menu's actions ask for their name here, where prompt()/confirm() are
+const profileAction = async (body) => {
+  try {
+    await api("POST", "/api/profile", body);
+    fill(await api("GET", "/api/config"));
+  } catch (e) {
+    log("error", e.message);
+  }
+};
+$("profile").addEventListener("change", () => profileAction({ action: "switch", file: $("profile").value }));
+globalThis.askProfile = (action, suggested) => {
+  if (action === "delete") {
+    if (confirm(`Delete the profile "${suggested}"? This can't be undone.`)) profileAction({ action });
+    return;
+  }
+  const name = prompt("Profile name:", suggested);
+  if (name?.trim()) profileAction({ action, name: name.trim() });
+};
+globalThis.confirmRestore = () => {
+  if (confirm(`Restore all backups under "${$("rjPath").value}"? Translated files go back to their originals.`)) {
+    api("POST", "/api/restore-backups").catch((e) => log("error", e.message));
+  }
+};
 
 // ---- run / stop / progress ----
 $("start").addEventListener("click", async () => {

@@ -2,7 +2,7 @@
 A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [SeConv CLI](https://subtitleedit.github.io/subtitleedit/reference/command-line.html) tool that lets you batch-translate various lyric files. Originally created for use with Kikoeru but adjusted to work with any folder structure.
 
 ## Usage
-**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)) in `lib/seconv/`. If it isn't there, click **Download latest pre-release** in the app.
+**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)) in `lib/seconv/`. If it isn't there, click **Download latest pre-release** in the app. On Windows, the app also needs the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (part of Windows 11) and the Visual C++ 2015-2022 x64 runtime.
 
 1) Download the latest release from [here](https://github.com/Makar8000/seconv-kikoeru/releases/latest) and extract it.
 2) Run `seconv-kikoeru`.
@@ -14,7 +14,7 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped.
 
 ## Configuration
-Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** menu switches between profiles and creates new ones (see [Menu](#menu)).
+Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** dropdown in the header switches between profiles, and the **Profile** menu creates new ones (see [Menu](#menu)).
 
 Three profiles are provided by default:
 - `Local llama.cpp` - The local `llamacpp` engine with [Tencent's Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B-GGUF) (see [Local llama.cpp](#local-llamacpp)).
@@ -58,8 +58,8 @@ Everything it starts comes from `lib/llama.cpp/`:
 - **Profile → New** - Asks for a name, then creates a profile with the default settings and loads it.
 - **Profile → Duplicate** - Asks for a name, then copies the loaded profile into a new one and loads it.
 - **Profile → Rename** - Renames the loaded profile.
-- **Profile → Delete** - Asks for confirmation, then deletes the loaded profile's file and loads the first profile left. Unavailable when there's only one.
-- **Profile → *(a profile)*** - Loads that profile. The loaded one has a check mark, and its name is in the window title.
+- **Profile → Delete** - Asks for confirmation, then deletes the loaded profile's file and loads the first profile left. The last profile can't be deleted.
+- **Profile dropdown** (in the window's header) - Loads the selected profile. The loaded one's name is in the window title.
 - **Tools → Update seconv** - Downloads the latest pre-release of seconv into `lib/seconv/`.
 - **Tools → Update llama.cpp** - Downloads the latest llama.cpp release into `lib/llama.cpp/bin/` (Windows only, see [Local llama.cpp](#local-llamacpp)).
 - **Tools → Restore backups** - Asks for confirmation, then restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
@@ -67,9 +67,11 @@ Everything it starts comes from `lib/llama.cpp/`:
 The above menu options are unavailable while a translation, download or restore is already running.
 
 ## Running from source
-This project requires [deno](https://deno.com/) 2.9+ (uses `deno desktop` with the system WebView backend).
+This project requires [Bun](https://bun.com/) 1.4+.
 
-1) `deno install`
-2) `deno task dev` (runs the app with hot reload) or `deno task build` (builds it for the current platform into `bin/seconv-kikoeru/`)
+1) `bun install`
+2) `bun run dev` (runs the app, restarting it when a source file changes) or `bun run build` (builds the Windows app into `bin/seconv-kikoeru/`: the executable and the webview addon next to it)
 
-On Linux, the WebView backend needs WebKitGTK.
+`bun check` type-checks the project, `bun run lint` runs Biome and `bun run fix` applies its fixes.
+
+The window is the system WebView, through [@webviewjs/webview](https://github.com/webviewjs/webview): WebView2 on Windows, WebKitGTK 4.1 on Linux, WebKit on macOS. The browser data it keeps (cache, cookies) goes to `.webview2/` inside the app folder.

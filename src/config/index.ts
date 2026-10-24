@@ -1,9 +1,10 @@
-import * as path from "@std/path";
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { logger } from "../logger.ts";
 import { SECONV_LANGUAGES } from "../seconv/locate.ts";
+import zeroGProfile from "./default-profiles/0g-private-computer.json" with { type: "json" };
 import defaultConfig from "./default-profiles/default-config.json" with { type: "json" };
 import openRouterProfile from "./default-profiles/openrouter.json" with { type: "json" };
-import zeroGProfile from "./default-profiles/0g-private-computer.json" with { type: "json" };
 import bundledLanguages from "./languages.json" with { type: "json" };
 
 /**
@@ -64,13 +65,13 @@ export const LANGUAGES: { name: string; code: string }[] = [];
 export const reloadLanguages = () => {
   let list = bundledLanguages;
   try {
-    const saved = JSON.parse(Deno.readTextFileSync(SECONV_LANGUAGES));
+    const saved = JSON.parse(readFileSync(SECONV_LANGUAGES, "utf8"));
     if (!Array.isArray(saved)) {
       throw new Error("not a list");
     }
     list = saved;
   } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       logger.warn(`Failed to read ${SECONV_LANGUAGES}, using the built-in language list. ${e}`);
     }
   }
@@ -155,13 +156,13 @@ const fileStem = (file: string) => file.replace(/\.json$/i, "");
 export const listProfiles = () => {
   const profiles: { file: string; name: string }[] = [];
   try {
-    for (const entry of Deno.readDirSync(PROFILES_DIR)) {
-      if (!entry.isFile || !entry.name.toLowerCase().endsWith(".json")) {
+    for (const entry of readdirSync(PROFILES_DIR, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) {
         continue;
       }
-      let name;
+      let name: string | undefined;
       try {
-        const raw = JSON.parse(Deno.readTextFileSync(path.join(PROFILES_DIR, entry.name)));
+        const raw = JSON.parse(readFileSync(path.join(PROFILES_DIR, entry.name), "utf8"));
         name = isRecord(raw) ? str(raw.name) : undefined;
       } catch {
         /* loading it says what's wrong */
@@ -169,7 +170,7 @@ export const listProfiles = () => {
       profiles.push({ file: entry.name, name: name || fileStem(entry.name) });
     }
   } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       throw e;
     }
   }
@@ -178,7 +179,7 @@ export const listProfiles = () => {
 
 const readProfile = (file: string): Config => {
   try {
-    return normalize(JSON.parse(Deno.readTextFileSync(path.join(PROFILES_DIR, file))), fileStem(file));
+    return normalize(JSON.parse(readFileSync(path.join(PROFILES_DIR, file), "utf8")), fileStem(file));
   } catch (e) {
     // Don't overwrite a profile the user may want to fix by hand
     logger.warn(`Failed to read the profile ${file}, using defaults. ${e}`);
@@ -187,11 +188,11 @@ const readProfile = (file: string): Config => {
 };
 
 const writeProfile = (file: string, settings: Config) => {
-  Deno.mkdirSync(PROFILES_DIR, { recursive: true });
-  Deno.writeTextFileSync(path.join(PROFILES_DIR, file), JSON.stringify(settings, null, 2));
+  mkdirSync(PROFILES_DIR, { recursive: true });
+  writeFileSync(path.join(PROFILES_DIR, file), JSON.stringify(settings, null, 2));
 };
 
-const writeApp = (profile: string) => Deno.writeTextFileSync(appPath, JSON.stringify({ profile }, null, 2));
+const writeApp = (profile: string) => writeFileSync(appPath, JSON.stringify({ profile }, null, 2));
 
 /**
  * The file for a profile named `name`: the name in kebab-case, stripped of everything but letters and digits ("Local (copy)"
@@ -242,9 +243,9 @@ export const profileLoads = () => loads;
 const load = (): Config => {
   let wanted: unknown;
   try {
-    wanted = JSON.parse(Deno.readTextFileSync(appPath)).profile;
+    wanted = JSON.parse(readFileSync(appPath, "utf8")).profile;
   } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       logger.warn(`Failed to read ${appPath}. ${e}`);
     }
   }
@@ -303,7 +304,7 @@ export const duplicateProfile = (name: string) => addProfile({ ...structuredClon
 export const renameProfile = (name: string) => {
   const file = fileFor(name, profileFile);
   if (file !== profileFile) {
-    Deno.renameSync(path.join(PROFILES_DIR, profileFile), path.join(PROFILES_DIR, file));
+    renameSync(path.join(PROFILES_DIR, profileFile), path.join(PROFILES_DIR, file));
     profileFile = file;
     writeApp(file);
   }
@@ -316,6 +317,6 @@ export const deleteProfile = () => {
   if (!rest.length) {
     throw new Error("The last profile can't be deleted.");
   }
-  Deno.removeSync(path.join(PROFILES_DIR, profileFile));
+  rmSync(path.join(PROFILES_DIR, profileFile));
   switchProfile(rest[0].file);
 };

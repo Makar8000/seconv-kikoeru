@@ -1,7 +1,8 @@
-import * as fs from "@std/fs";
-import * as path from "@std/path";
-import { BACKUPS_FOLDER, findBackupFilesByRjFolder, METADATA_FOLDER } from "./fileDiscovery.ts";
+import { copyFileSync, mkdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { logger } from "../logger.ts";
+import { BACKUPS_FOLDER, findBackupFilesByRjFolder, METADATA_FOLDER } from "./fileDiscovery.ts";
 
 export type RestoreErrorEntry = { file: string; error: string };
 
@@ -22,11 +23,8 @@ export const restoreBackups = (rjFolder: string, files: string[]): RestoreErrorE
 
     try {
       logger.info(`Restoring ${file}`);
-      const originalFolder = path.dirname(originalFilePath);
-      if (!fs.existsSync(originalFolder)) {
-        Deno.mkdirSync(originalFolder, { recursive: true });
-      }
-      Deno.copyFileSync(bakFilePath, originalFilePath);
+      mkdirSync(path.dirname(originalFilePath), { recursive: true });
+      copyFileSync(bakFilePath, originalFilePath);
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       logger.error(`Failed to restore ${file}. ${error}`);
@@ -54,7 +52,7 @@ export const restoreAllBackups = async () => {
       logger.error(`Completed ${rjFolder} with ${errors.length} error(s), keeping its ${METADATA_FOLDER} folder`);
       continue;
     }
-    await Deno.remove(path.join(rjFolder, METADATA_FOLDER), { recursive: true });
+    await rm(path.join(rjFolder, METADATA_FOLDER), { recursive: true });
     logger.info(`Completed ${rjFolder}`);
   }
 

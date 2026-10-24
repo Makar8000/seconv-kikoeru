@@ -1,22 +1,23 @@
-import * as fs from "@std/fs";
-import * as path from "@std/path";
+import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 export const SECONV_RELEASES_URL = "https://github.com/SubtitleEdit/subtitleedit/releases";
 export const SECONV_NOT_FOUND = `seconv was not found. Use the download button, or get it from ${SECONV_RELEASES_URL} and put it in lib/seconv/.`;
 
+const WINDOWS = process.platform === "win32";
 /** Everything the app runs lives under lib/ (relative to the working directory, like settings.json). */
 const LIB_DIR = path.resolve("lib");
 export const SECONV_LIB_DIR = path.join(LIB_DIR, "seconv");
-export const SECONV_BINARY = Deno.build.os === "windows" ? "seconv.exe" : "seconv";
+export const SECONV_BINARY = WINDOWS ? "seconv.exe" : "seconv";
 /** seconv's translation languages, saved by the installer (seconv has no command to list them). */
 export const SECONV_LANGUAGES = path.join(SECONV_LIB_DIR, "languages.json");
 /** llama.cpp for the llamacpp engine: bin/, models/ and config.ini. */
 export const LLAMACPP_DIR = path.join(LIB_DIR, "llama.cpp");
 /** The llama.cpp build (llama-server and its libraries), replaced as a whole by updates, unlike models/ and config.ini. */
 export const LLAMACPP_BIN = path.join(LLAMACPP_DIR, "bin");
-export const LLAMACPP_SERVER = Deno.build.os === "windows" ? "llama-server.exe" : "llama-server";
+export const LLAMACPP_SERVER = WINDOWS ? "llama-server.exe" : "llama-server";
 /** llama.cpp's command-line tool, used for its model downloader. */
-export const LLAMACPP_TOOL = Deno.build.os === "windows" ? "llama.exe" : "llama";
+export const LLAMACPP_TOOL = WINDOWS ? "llama.exe" : "llama";
 export const LLAMACPP_MODELS = path.join(LLAMACPP_DIR, "models");
 const LLAMACPP_CONFIG = path.join(LLAMACPP_DIR, "config.ini");
 
@@ -34,7 +35,7 @@ offline = true
 
 const isFile = (p: string) => {
   try {
-    return Deno.statSync(p).isFile;
+    return statSync(p).isFile();
   } catch {
     return false;
   }
@@ -62,11 +63,8 @@ export const findModel = (model: string): string => {
     ? /\.gguf$/i.test(model)
       ? model
       : `${model}.gguf`
-    : fs.existsSync(LLAMACPP_MODELS)
-      ? [...Deno.readDirSync(LLAMACPP_MODELS)]
-          .map((e) => e.name)
-          .filter(isModel)
-          .sort()[0]
+    : existsSync(LLAMACPP_MODELS)
+      ? readdirSync(LLAMACPP_MODELS).filter(isModel).sort()[0]
       : undefined;
   if (!file || !isFile(path.join(LLAMACPP_MODELS, file))) {
     throw new Error(file ? `Model ${file} was not found in ${LLAMACPP_MODELS}.` : `No .gguf model was found in ${LLAMACPP_MODELS}.`);
@@ -77,7 +75,7 @@ export const findModel = (model: string): string => {
 /** Writes lib/llama.cpp/config.ini when it's missing. */
 export const writeLlamaCppConfig = () => {
   if (!isFile(LLAMACPP_CONFIG)) {
-    Deno.writeTextFileSync(LLAMACPP_CONFIG, DEFAULT_LLAMACPP_CONFIG);
+    writeFileSync(LLAMACPP_CONFIG, DEFAULT_LLAMACPP_CONFIG);
   }
 };
 
@@ -89,7 +87,7 @@ export const writeLlamaCppConfig = () => {
  *   `configHome`, by default lib/, so llama-server reads lib/llama.cpp/config.ini
  * - CUDA builds would otherwise cache compiled kernels in %APPDATA%\NVIDIA\ComputeCache
  */
-export const llamaCppEnv = (env: Record<string, string>, configHome = LIB_DIR): Record<string, string> => {
+export const llamaCppEnv = (env: NodeJS.ProcessEnv, configHome = LIB_DIR): NodeJS.ProcessEnv => {
   const own: Record<string, string> = {
     PATH: LLAMACPP_BIN,
     APPDATA: configHome,

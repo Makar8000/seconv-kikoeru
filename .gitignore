@@ -1,5 +1,5 @@
-# Deno and IDE
-vendor
+# bun and IDE
+node_modules
 .vscode
 
 # build and CI
@@ -13,13 +13,7 @@ profiles/
 lib/
 queue/**
 !queue/**/.gitkeep
+.webview2/
 
 # seconv error log
 error-log.txt
-
-# bun
-node_modules/
-
-# webviewjs spike (Phase 0)
-.webview2-spike/
-spike/out/

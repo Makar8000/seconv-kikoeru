@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   config,
   currentProfile,
@@ -13,25 +14,23 @@ import {
   uniqueName,
   updateConfig,
 } from "./config/index.ts";
-import { type Progress, runTranslation } from "./translation/runner.ts";
 import { getLogsSince, logger } from "./logger.ts";
-import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
-import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.ts";
 import { installLlamaCpp, installSeconv } from "./seconv/installer.ts";
+import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.ts";
+import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
 import { restoreAllBackups } from "./translation/restorer.ts";
+import { type Progress, runTranslation } from "./translation/runner.ts";
 
-// Static UI files, read once at startup (embedded in the binary via --include src/ui)
+// The page's files, next to this one in src/ui; `bun run build` embeds them in the executable (--asset src/ui)
 const ASSETS: Record<string, { file: string; type: string }> = {
   "/": { file: "index.html", type: "text/html; charset=utf-8" },
   "/style.css": { file: "style.css", type: "text/css; charset=utf-8" },
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
 };
-const assets = Object.fromEntries(
-  Object.entries(ASSETS).map(([route, a]) => [route, Deno.readTextFileSync(new URL(`./ui/${a.file}`, import.meta.url))]),
-);
-
-// The llama-server started for a run must not outlive the app
-globalThis.addEventListener("unload", stopLlamaServer);
+const asset = (route: string) => {
+  const { file, type } = ASSETS[route];
+  return new Response(Bun.file(path.join(import.meta.dir, "ui", file)), { headers: { "content-type": type } });
+};
 
 type State = { running: boolean; installing: boolean; restoring: boolean } & Progress;
 const state: State = { running: false, installing: false, restoring: false, done: 0, total: 0, filesDone: 0, filesTotal: 0 };
@@ -43,9 +42,6 @@ let abort: AbortController | undefined;
 // no-store: the WebView would otherwise keep these (log lines, settings with API keys) in its disk cache
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
-// Shows the profiles in the window: the list in the menu, the loaded one's name in the title; set once the window exists
-let showProfiles = () => {};
-
 const start = () => {
   if (busyReason()) {
     return;
@@ -53,7 +49,8 @@ const start = () => {
   if (!findSeconv()) {
     throw new Error(SECONV_NOT_FOUND);
   }
-  const controller = (abort = new AbortController());
+  const controller = new AbortController();
+  abort = controller;
   Object.assign(state, { running: true, done: 0, total: 0, filesDone: 0, filesTotal: 0 });
   logger.info("Starting translation...");
   const translate = async () => {
@@ -70,7 +67,9 @@ const start = () => {
   translate()
     .then(() => logger.info(controller.signal.aborted ? "Translation stopped." : "Finished processing all files."))
     .catch((e) => (controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e)))
-    .finally(() => (state.running = false));
+    .finally(() => {
+      state.running = false;
+    });
 };
 
 /**
@@ -94,7 +93,7 @@ const exclusive = async <T>(flag: "installing" | "restoring", what: string, task
 
 const install = () => exclusive("installing", "update seconv", async () => ({ tag: await installSeconv(), seconvFound: findSeconv() !== null }));
 
-const installLlama = () => exclusive("installing", "update llama.cpp", installLlamaCpp);
+const installLlama = () => exclusive("installing", "update llama.cpp", () => installLlamaCpp());
 
 const restore = () =>
   exclusive("restoring", "restore backups", async () => {
@@ -102,20 +101,18 @@ const restore = () =>
     logger.info("Finished restoring all backups.");
   });
 
-/** A Profile menu action. The page notices a switch on its next state poll and shows the profile's settings. */
-const changeProfile = async (action: () => unknown) => {
+/** Runs a Profile menu action or a switch in the page's profile dropdown; the page then reloads the settings. */
+const changeProfile = (action: () => void) => {
   // A run reads the settings as it goes
   if (busyReason()) {
-    logger.warn(`Can't change the profile while ${busyReason()}.`);
-    return;
+    throw new Error(`Can't change the profile while ${busyReason()}.`);
   }
-  try {
-    await action();
-    showProfiles();
-  } catch (e) {
-    logger.error(e);
-  }
+  action();
+  showTitle();
 };
+
+/** Shows the loaded profile's name in the window title; set once the window exists */
+let showTitle = () => {};
 
 const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unknown> = {
   "GET /api/config": () => ({
@@ -123,13 +120,18 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     load: profileLoads(),
     engines: TRANSLATE_ENGINES,
     languages: LANGUAGES,
+    profiles: listProfiles(),
+    profile: currentProfile(),
     seconvFound: findSeconv() !== null,
   }),
-  "POST /api/stop": () => (abort?.abort(), state),
+  "POST /api/stop": () => {
+    abort?.abort();
+    return state;
+  },
   "POST /api/config": (body) => {
-    // An edit made in the page just before the menu loaded another profile belongs to the old one
+    // An edit made in the page just before another profile was loaded belongs to the old one
     if (body.load !== profileLoads()) {
-      throw new Error("The profile was changed in the menu, so the last edit wasn't saved.");
+      throw new Error("The profile was changed, so the last edit wasn't saved.");
     }
     return { config: updateConfig(body) };
   },
@@ -139,117 +141,138 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     seconvFound: findSeconv() !== null,
     logs: getLogsSince(Number(url.searchParams.get("since")) || 0),
   }),
-  "POST /api/start": () => (start(), state),
+  "POST /api/start": () => {
+    start();
+    return state;
+  },
   "POST /api/install-seconv": install,
-  "POST /api/restore-backups": async () => (await restore(), state),
+  "POST /api/install-llamacpp": installLlama,
+  "POST /api/restore-backups": async () => {
+    await restore();
+    return state;
+  },
+  // The page has already asked for the name or the confirmation
+  "POST /api/profile": (body) => {
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const file = typeof body.file === "string" ? body.file : "";
+    const actions: Record<string, (() => void) | undefined> = {
+      new: name ? () => newProfile(name) : undefined,
+      duplicate: name ? () => duplicateProfile(name) : undefined,
+      rename: name ? () => renameProfile(name) : undefined,
+      delete: deleteProfile,
+      switch: file ? () => switchProfile(file) : undefined,
+    };
+    const action = Object.hasOwn(actions, String(body.action)) ? actions[String(body.action)] : undefined;
+    if (!action) {
+      throw new Error("Invalid profile action.");
+    }
+    changeProfile(action);
+    return { load: profileLoads() };
+  },
 };
 
-Deno.serve(async (req) => {
-  const url = new URL(req.url);
-  if (req.method === "GET" && url.pathname in assets) {
-    return new Response(assets[url.pathname], { headers: { "content-type": ASSETS[url.pathname].type } });
-  }
+const server = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  idleTimeout: 0, // an install or a restore holds its request for minutes
+  async fetch(req) {
+    const url = new URL(req.url);
+    if (req.method === "GET" && url.pathname in ASSETS) {
+      return asset(url.pathname);
+    }
 
-  const handler = handlers[`${req.method} ${url.pathname}`];
-  if (!handler) {
-    return json({ error: "Not found" }, 404);
-  }
+    const handler = handlers[`${req.method} ${url.pathname}`];
+    if (!handler) {
+      return json({ error: "Not found" }, 404);
+    }
 
-  // Requiring a JSON content type forces a CORS preflight for cross-origin pages, which we never grant,
-  // so other websites can't drive this local API.
-  if (req.method === "POST" && !req.headers.get("content-type")?.startsWith("application/json")) {
-    return json({ error: "Expected application/json" }, 415);
-  }
+    // Requiring a JSON content type forces a CORS preflight for cross-origin pages, which we never grant,
+    // so other websites can't drive this local API.
+    if (req.method === "POST" && !req.headers.get("content-type")?.startsWith("application/json")) {
+      return json({ error: "Expected application/json" }, 415);
+    }
 
-  try {
-    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-    return json(await handler(body, url));
-  } catch (e) {
-    logger.error(e);
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
-  }
+    try {
+      const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+      return json(await handler(body, url));
+    } catch (e) {
+      logger.error(e);
+      return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    }
+  },
 });
 
-// deno-lint-ignore no-explicit-any
-const BrowserWindow = (Deno as any).BrowserWindow;
-if (BrowserWindow) {
-  // Sized so the whole form + console fit without scrolling
-  const win = new BrowserWindow({ title: "seconv-kikoeru", width: 860, height: 900 });
-  const item = (label: string, id: string, checked = false, enabled = true) => ({ item: { label, id, enabled, checked } });
-
-  /** Shows `dialog`, a prompt() or confirm() call, in the page and returns the answer. */
-  const ask = async (dialog: string) => {
-    const answer = await win.executeJs(dialog);
-    // Deno 2.9.8 answers { ok, value }, although its types say the value itself
-    return typeof answer === "object" && answer !== null ? answer.value : answer;
-  };
-
-  /** Asks for a profile name, then runs `action` with it; nothing when cancelled or left blank. */
-  const withName = (suggested: string, action: (name: string) => void) => async () => {
-    const name = await ask(`prompt("Profile name:", ${JSON.stringify(suggested)})`);
-    if (typeof name === "string" && name.trim()) {
-      action(name.trim());
-    }
-  };
-
-  const confirmDelete = async () => {
-    if ((await ask(`confirm(${JSON.stringify(`Delete the profile "${config.name}"? This can't be undone.`)})`)) === true) {
-      deleteProfile();
-    }
-  };
-
-  /** Asks before restoring; while the app is busy, restore() explains instead why it can't. */
-  const confirmRestore = async () => {
-    const question = `Restore all backups under "${config.rjPath}"? Translated files go back to their originals.`;
-    if (busyReason() || (await ask(`confirm(${JSON.stringify(question)})`)) === true) {
-      await restore();
-    }
-  };
-
-  showProfiles = () => {
-    const profiles = listProfiles();
-    win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
-    win.setApplicationMenu([
-      {
-        submenu: {
-          label: "Profile",
-          items: [
-            item("New", "profile-new"),
-            item("Duplicate", "profile-duplicate"),
-            item("Rename", "profile-rename"),
-            item("Delete", "profile-delete", false, profiles.length > 1),
-            "separator",
-            ...profiles.map((p) => item(p.name, `profile:${p.file}`, p.file === currentProfile())),
-          ],
-        },
-      },
-      {
-        submenu: {
-          label: "Tools",
-          items: [
-            item("Update seconv", "update-seconv"),
-            item("Update llama.cpp", "update-llamacpp"),
-            "separator",
-            item("Restore backups", "restore-backups"),
-          ],
-        },
-      },
-    ]);
-  };
-  showProfiles();
-
-  // Failures are already logged (and shown in the console panel) by install()/installLlama()/restore()/changeProfile()
-  win.addEventListener("menuclick", (e: { detail: { id: string } }) => {
-    const id = e.detail.id;
-    if (id === "update-seconv") install().catch(() => {});
-    if (id === "update-llamacpp") installLlama().catch(() => {});
-    if (id === "restore-backups") confirmRestore().catch(() => {});
-    if (id === "profile-new") changeProfile(withName(uniqueName("New profile"), newProfile));
-    if (id === "profile-duplicate") changeProfile(withName(uniqueName(`${config.name} (copy)`), duplicateProfile));
-    if (id === "profile-rename") changeProfile(withName(config.name, renameProfile));
-    if (id === "profile-delete") changeProfile(confirmDelete);
-    if (id.startsWith("profile:") && id !== `profile:${currentProfile()}`) {
-      changeProfile(() => switchProfile(id.slice("profile:".length)));
-    }
-  });
+// ---- window ----
+if (Bun.isStandaloneExecutable) {
+  // The copy of the webview addon the bundler embeds can't be loaded; use the one shipped next to the executable
+  process.env.NAPI_RS_NATIVE_LIBRARY_PATH = path.join(path.dirname(process.execPath), "webview.win32-x64-msvc.node");
 }
+const { Application } = await import("@webviewjs/webview");
+const app = new Application();
+// The embedded browser's data (cache, cookies) stays in the app folder
+const context = app.createWebContext({ dataDirectory: path.resolve(".webview2") });
+const item = (id: string, label: string) => ({ id, label });
+// A window's menu can't change once the window exists, so the profiles themselves are listed in the page
+const menu = {
+  items: [
+    {
+      label: "&Profile",
+      submenu: {
+        items: [
+          item("profile-new", "New"),
+          item("profile-duplicate", "Duplicate"),
+          item("profile-rename", "Rename"),
+          item("profile-delete", "Delete"),
+        ],
+      },
+    },
+    {
+      label: "&Tools",
+      submenu: {
+        items: [
+          item("update-seconv", "Update seconv"),
+          item("update-llamacpp", "Update llama.cpp"),
+          { role: "separator" },
+          item("restore-backups", "Restore backups"),
+        ],
+      },
+    },
+  ],
+};
+const win = app.createBrowserWindow({
+  title: "seconv-kikoeru",
+  // Sized so the whole form + console fit without scrolling
+  width: 860,
+  height: 900,
+  showMenu: true,
+  menu,
+});
+// The window shows its own copy of the menu; clicks only reach custom-menu-click for items the application menu knows
+app.setMenu(menu);
+const view = win.createWebview({ url: server.url.href, webContext: context });
+showTitle = () => win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
+showTitle();
+
+/** Runs `call` in the page: its prompt() and confirm() are the window's dialogs, and it posts the answer to the API. */
+const inPage = (call: string) => view.evaluateScript(call);
+// Failures are logged (and shown in the console panel) by install()/installLlama() and the API handlers
+app.on("custom-menu-click", ({ customMenuEvent }) => {
+  const id = customMenuEvent?.id;
+  if (id === "update-seconv") install().catch(() => {});
+  if (id === "update-llamacpp") installLlama().catch(() => {});
+  if (id === "restore-backups") inPage("confirmRestore()");
+  if (id === "profile-new") inPage(`askProfile("new", ${JSON.stringify(uniqueName("New profile"))})`);
+  if (id === "profile-duplicate") inPage(`askProfile("duplicate", ${JSON.stringify(uniqueName(`${config.name} (copy)`))})`);
+  if (id === "profile-rename") inPage(`askProfile("rename", ${JSON.stringify(config.name)})`);
+  if (id === "profile-delete") inPage(`askProfile("delete", ${JSON.stringify(config.name)})`);
+});
+app.on("window-close-requested", () => {
+  app.exit();
+  setTimeout(() => process.exit(0), 50); // after the exit above, which the event pump defers
+});
+// The llama-server, and the seconv, started for a run must not outlive the app
+process.on("exit", () => {
+  abort?.abort();
+  stopLlamaServer();
+});
+app.run();

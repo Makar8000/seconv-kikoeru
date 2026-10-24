@@ -1,5 +1,21 @@
 {
+  "name": "seconv-kikoeru",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "build": "bun build --compile --windows-hide-console --asset src/ui src/main.ts --outfile bin/seconv-kikoeru/seconv-kikoeru && cp node_modules/@webviewjs/webview-win32-x64-msvc/webview.win32-x64-msvc.node bin/seconv-kikoeru/",
+    "lint": "biome check",
+    "fix": "biome check --write"
+  },
   "dependencies": {
-    "@webviewjs/webview": "^0.4.9"
+    "@webviewjs/webview": "^0.4.9",
+    "@zip.js/zip.js": "^2.24.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.3",
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
   }
 }

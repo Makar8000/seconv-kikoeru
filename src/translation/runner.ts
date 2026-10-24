@@ -1,10 +1,10 @@
-import * as path from "@std/path";
+import path from "node:path";
 import { config } from "../config/index.ts";
+import { logger } from "../logger.ts";
 import { inspect } from "../seconv/convert.ts";
 import { findSubtitleFilesByRjCode } from "./fileDiscovery.ts";
-import { logger } from "../logger.ts";
 import type { TranslationErrorEntry } from "./manifest.ts";
-import { pendingFiles, type PlannedFile, translateFiles } from "./translator.ts";
+import { type PlannedFile, pendingFiles, translateFiles } from "./translator.ts";
 
 /** Progress in lines (`done` / `total`, for the bar) and in files (for the status text). */
 export type Progress = { done: number; total: number; filesDone: number; filesTotal: number };

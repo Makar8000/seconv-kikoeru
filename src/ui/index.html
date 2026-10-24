@@ -9,6 +9,7 @@
   <body>
     <header>
       <h1>seconv-kikoeru</h1>
+      <label class="profile">Profile <select id="profile"></select></label>
       <span class="pill" id="pill">Idle</span>
     </header>
 
@@ -100,8 +101,8 @@
     </main>
 
     <div class="runbar">
-      <button id="start" class="primary">Start translation</button>
-      <button id="stop" class="danger" hidden>Stop</button>
+      <button type="button" id="start" class="primary">Start translation</button>
+      <button type="button" id="stop" class="danger" hidden>Stop</button>
       <div class="progress" id="progress">
         <div id="bar"></div>
       </div>

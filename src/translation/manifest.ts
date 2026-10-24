@@ -1,5 +1,5 @@
-import * as fs from "@std/fs";
-import * as path from "@std/path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { logger } from "../logger.ts";
 
 export const MANIFEST_VERSION = 1;
@@ -61,13 +61,12 @@ const isTranslationErrorEntry = (entry: unknown): entry is TranslationErrorEntry
 export const loadManifest = (manifestPath: string): Manifest => {
   const empty: Manifest = { version: MANIFEST_VERSION, translated: [], errors: [] };
 
-  if (!fs.existsSync(manifestPath)) {
+  if (!existsSync(manifestPath)) {
     return empty;
   }
 
   try {
-    const data = Deno.readTextFileSync(manifestPath);
-    const json = JSON.parse(data);
+    const json = JSON.parse(readFileSync(manifestPath, "utf8"));
     if (typeof json === "object" && json !== null) {
       const translated = Array.isArray(json.translated) ? json.translated.filter(isTranslatedEntry) : [];
       const errors = Array.isArray(json.errors) ? json.errors.filter(isTranslationErrorEntry) : [];
@@ -82,12 +81,8 @@ export const loadManifest = (manifestPath: string): Manifest => {
 
 /** Writes a manifest to `manifestPath` as formatted JSON, creating the parent folder if it doesn't exist. */
 export const saveManifest = (manifestPath: string, manifest: Manifest) => {
-  const folder = path.dirname(manifestPath);
-  if (!fs.existsSync(folder)) {
-    Deno.mkdirSync(folder, { recursive: true });
-  }
-
-  Deno.writeTextFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  mkdirSync(path.dirname(manifestPath), { recursive: true });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 };
 
 /** Upserts an entry into a manifest list, keyed by `file`, mutating the array in place. */

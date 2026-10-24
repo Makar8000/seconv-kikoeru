@@ -10,9 +10,8 @@ export type LogEntry = { id: number; level: "info" | "warn" | "error"; text: str
 const entries: LogEntry[] = [];
 let nextId = 1;
 
-// deno-lint-ignore no-explicit-any
-const record = (level: LogEntry["level"], args: any[]) => {
-  const text = args.map((a) => (a instanceof Error ? (a.stack ?? a.message) : typeof a === "string" ? a : Deno.inspect(a))).join(" ");
+const record = (level: LogEntry["level"], args: unknown[]) => {
+  const text = args.map((a) => (a instanceof Error ? (a.stack ?? a.message) : typeof a === "string" ? a : Bun.inspect(a))).join(" ");
   entries.push({ id: nextId++, level, text });
   if (entries.length > MAX_ENTRIES) {
     entries.shift();
@@ -24,10 +23,16 @@ export const getLogsSince = (id: number): LogEntry[] => entries.filter((e) => e.
 
 /** Simple console logger with color-highlighted warning/error output. */
 export const logger = {
-  // deno-lint-ignore no-explicit-any
-  info: (...args: any[]) => (record("info", args), console.log(...args)),
-  // deno-lint-ignore no-explicit-any
-  warn: (...args: any[]) => (record("warn", args), console.warn(COLORS.WARN, ...args)),
-  // deno-lint-ignore no-explicit-any
-  error: (...args: any[]) => (record("error", args), console.error(COLORS.ERROR, ...args)),
+  info: (...args: unknown[]) => {
+    record("info", args);
+    console.log(...args);
+  },
+  warn: (...args: unknown[]) => {
+    record("warn", args);
+    console.warn(COLORS.WARN, ...args);
+  },
+  error: (...args: unknown[]) => {
+    record("error", args);
+    console.error(COLORS.ERROR, ...args);
+  },
 };
