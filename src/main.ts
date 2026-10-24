@@ -1,4 +1,18 @@
-import { config, LANGUAGES, TRANSLATE_ENGINES, updateConfig } from "./config/index.ts";
+import {
+  config,
+  currentProfile,
+  deleteProfile,
+  duplicateProfile,
+  LANGUAGES,
+  listProfiles,
+  newProfile,
+  profileLoads,
+  renameProfile,
+  switchProfile,
+  TRANSLATE_ENGINES,
+  uniqueName,
+  updateConfig,
+} from "./config/index.ts";
 import { runTranslation } from "./translation/runner.ts";
 import { getLogsSince, logger } from "./logger.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
@@ -28,6 +42,9 @@ let abort: AbortController | undefined;
 
 // no-store: the WebView would otherwise keep these (log lines, settings with API keys) in its disk cache
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
+
+// Shows the profiles in the window: the list in the menu, the loaded one's name in the title; set once the window exists
+let showProfiles = () => {};
 
 const start = () => {
   if (busyReason()) {
@@ -85,12 +102,40 @@ const restore = () =>
     logger.info("Finished restoring all backups.");
   });
 
+/** A Profile menu action. The page notices a switch on its next state poll and shows the profile's settings. */
+const changeProfile = async (action: () => unknown) => {
+  // A run reads the settings as it goes
+  if (busyReason()) {
+    logger.warn(`Can't change the profile while ${busyReason()}.`);
+    return;
+  }
+  try {
+    await action();
+    showProfiles();
+  } catch (e) {
+    logger.error(e);
+  }
+};
+
 const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unknown> = {
-  "GET /api/config": () => ({ config, engines: TRANSLATE_ENGINES, languages: LANGUAGES, seconvFound: findSeconv() !== null }),
+  "GET /api/config": () => ({
+    config,
+    load: profileLoads(),
+    engines: TRANSLATE_ENGINES,
+    languages: LANGUAGES,
+    seconvFound: findSeconv() !== null,
+  }),
   "POST /api/stop": () => (abort?.abort(), state),
-  "POST /api/config": (body) => ({ config: updateConfig(body) }),
+  "POST /api/config": (body) => {
+    // An edit made in the page just before the menu loaded another profile belongs to the old one
+    if (body.load !== profileLoads()) {
+      throw new Error("The profile was changed in the menu, so the last edit wasn't saved.");
+    }
+    return { config: updateConfig(body) };
+  },
   "GET /api/state": (_body, url) => ({
     ...state,
+    load: profileLoads(),
     seconvFound: findSeconv() !== null,
     logs: getLogsSince(Number(url.searchParams.get("since")) || 0),
   }),
@@ -130,21 +175,73 @@ const BrowserWindow = (Deno as any).BrowserWindow;
 if (BrowserWindow) {
   // Sized so the whole form + console fit without scrolling
   const win = new BrowserWindow({ title: "seconv-kikoeru", width: 860, height: 900 });
-  const item = (label: string, id: string) => ({ item: { label, id, enabled: true } });
+  const item = (label: string, id: string, checked = false, enabled = true) => ({ item: { label, id, enabled, checked } });
 
-  win.setApplicationMenu([
-    {
-      submenu: {
-        label: "Tools",
-        items: [item("Update seconv", "update-seconv"), item("Update llama.cpp", "update-llamacpp"), item("Restore backups", "restore-backups")],
+  /** Shows `dialog`, a prompt() or confirm() call, in the page and returns the answer. */
+  const ask = async (dialog: string) => {
+    const answer = await win.executeJs(dialog);
+    // Deno 2.9.8 answers { ok, value }, although its types say the value itself
+    return typeof answer === "object" && answer !== null ? answer.value : answer;
+  };
+
+  /** Asks for a profile name, then runs `action` with it; nothing when cancelled or left blank. */
+  const withName = (suggested: string, action: (name: string) => void) => async () => {
+    const name = await ask(`prompt("Profile name:", ${JSON.stringify(suggested)})`);
+    if (typeof name === "string" && name.trim()) {
+      action(name.trim());
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (await ask(`confirm(${JSON.stringify(`Delete the profile "${config.name}"? This can't be undone.`)})`) === true) {
+      deleteProfile();
+    }
+  };
+
+  showProfiles = () => {
+    const profiles = listProfiles();
+    win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
+    win.setApplicationMenu([
+      {
+        submenu: {
+          label: "Profile",
+          items: [
+            item("New", "profile-new"),
+            item("Duplicate", "profile-duplicate"),
+            item("Rename", "profile-rename"),
+            item("Delete", "profile-delete", false, profiles.length > 1),
+            "separator",
+            ...profiles.map((p) => item(p.name, `profile:${p.file}`, p.file === currentProfile())),
+          ],
+        },
       },
-    },
-  ]);
+      {
+        submenu: {
+          label: "Tools",
+          items: [
+            item("Update seconv", "update-seconv"),
+            item("Update llama.cpp", "update-llamacpp"),
+            "separator",
+            item("Restore backups", "restore-backups"),
+          ],
+        },
+      },
+    ]);
+  };
+  showProfiles();
 
-  // Failures are already logged (and shown in the console panel) by install()/installLlama()/restore()
+  // Failures are already logged (and shown in the console panel) by install()/installLlama()/restore()/changeProfile()
   win.addEventListener("menuclick", (e: { detail: { id: string } }) => {
-    if (e.detail.id === "update-seconv") install().catch(() => {});
-    if (e.detail.id === "update-llamacpp") installLlama().catch(() => {});
-    if (e.detail.id === "restore-backups") restore().catch(() => {});
+    const id = e.detail.id;
+    if (id === "update-seconv") install().catch(() => {});
+    if (id === "update-llamacpp") installLlama().catch(() => {});
+    if (id === "restore-backups") restore().catch(() => {});
+    if (id === "profile-new") changeProfile(withName(uniqueName("New profile"), newProfile));
+    if (id === "profile-duplicate") changeProfile(withName(uniqueName(`${config.name} (copy)`), duplicateProfile));
+    if (id === "profile-rename") changeProfile(withName(config.name, renameProfile));
+    if (id === "profile-delete") changeProfile(confirmDelete);
+    if (id.startsWith("profile:") && id !== `profile:${currentProfile()}`) {
+      changeProfile(() => switchProfile(id.slice("profile:".length)));
+    }
   });
 }

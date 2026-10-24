@@ -1,20 +1,18 @@
-node_modules
+# Deno and IDE
 vendor
 .vscode
-.clinerules
 
-config.json
-lib/
-seconv-kikoeru/
-*.dll
-data
+# build and CI
+bin
 artifact
 release
-bin
-*.exe
-*.txt
 
+# seconv-kikoeru
+config.json
+profiles/
+lib/
 queue/**
 !queue/**/.gitkeep
-data/**
-.env
+
+# seconv error log
+error-log.txt

@@ -37,6 +37,9 @@ const setValue = (f, v) => {
 };
 let engines = {};
 let shownEngine = "";
+// Which profile load the form shows (it counts loads, not renames). Saves name it, so an edit made just before the
+// menu loaded another profile isn't saved into that one
+let shownLoad = -1;
 
 const readEngine = () => ({
   ...Object.fromEntries(inputs.filter(isEngine).map((f) => [f.dataset.key, getValue(f)])),
@@ -47,6 +50,7 @@ const read = () => ({
   ...Object.fromEntries(inputs.filter((f) => !isEngine(f)).map((f) => [f.dataset.key, getValue(f)])),
   ...Object.fromEntries(lists.filter((l) => !isEngine(l)).map((l) => [l.dataset.list, chips(l)])),
   engines: { ...engines, [shownEngine]: readEngine() },
+  load: shownLoad,
 });
 
 let saveTimer;
@@ -154,7 +158,8 @@ const fillLanguages = (languages, current) => {
   fillSelect($("translateTo"), langs, current.translateTo);
 };
 
-const fill = ({ config, engines: engineNames, languages, seconvFound }) => {
+const fill = ({ config, load, engines: engineNames, languages, seconvFound }) => {
+  shownLoad = load;
   setSeconvFound(seconvFound);
   fillSelect($("translateEngine"), engineNames.map((e) => ({ value: e, label: e })), config.translateEngine);
   fillLanguages(languages, config);
@@ -207,6 +212,10 @@ const poll = async () => {
     $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
     $("status").textContent = s.total ? `${s.done} / ${s.total}` : "";
     setSeconvFound(s.seconvFound);
+    // A profile picked in the menu: show its settings
+    if (s.load !== shownLoad) {
+      api("GET", "/api/config").then(fill).catch((e) => log("error", e.message));
+    }
     // An install brings that seconv's language list; watched here so the menu's "Update seconv" is covered too
     if (wasInstalling && !s.installing) {
       api("GET", "/api/config").then((d) => fillLanguages(d.languages, read())).catch((e) => log("error", e.message));

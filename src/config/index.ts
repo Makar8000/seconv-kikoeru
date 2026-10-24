@@ -2,19 +2,22 @@ import * as path from "@std/path";
 import { logger } from "../logger.ts";
 import { SECONV_LANGUAGES } from "../seconv/locate.ts";
 import defaultConfig from "./default-config.json" with { type: "json" };
+import openRouterProfile from "./openrouter-profile.json" with { type: "json" };
 import bundledLanguages from "./languages.json" with { type: "json" };
 
 /**
- * Application configuration, persisted to `config.json` (in the current working directory).
- * See `default-config.json` for the defaults used when `config.json` doesn't exist yet.
+ * A profile's settings, saved in `profiles/` (in the current working directory) as a .json file named after the profile.
+ * See `default-config.json` for the settings of a new profile.
  *
  * SeConv options: https://subtitleedit.github.io/subtitleedit/reference/command-line.html
+ * - `name`: the profile's name in the Profile menu
  * - `translateFrom`: if empty, auto-detect
  * - `engines`: one settings entry per translation engine (see `EngineConfig`); only the selected `translateEngine` is used
  * - `rjPath`: folder searched recursively for files to translate
  * - `subtitleExtensions`: file types to parse
  */
 export type Config = {
+  name: string;
   translateEngine: string;
   translateFrom: string;
   translateTo: string;
@@ -30,7 +33,7 @@ export type Config = {
  * - `url`: llamacpp: a llama.cpp server already running there is used, else one is started on its port
  * - `apiKey`: only for openai-compatible and deepl (required for deepl)
  * - `useCustomPrompt`: if false, `prompt` is kept but not sent, so seconv uses its default prompt
- * - `prompt`: only for the LLM engines (llamacpp, ollama, lmstudio, openai-compatible); if empty, seconv's default
+ * - `prompt`: only for the LLM engines (llamacpp, openai-compatible); if empty, seconv's default
  * - `temperature`, `topP`, `topK`, `repeatPenalty`: llamacpp only, the sampling defaults of the llama-server this app
  *   starts (seconv sends none of its own when it's given a URL); a server that was already running keeps its own
  * - `additionalArgs`: extra args passed straight to seconv
@@ -51,8 +54,8 @@ export type EngineConfig = {
 /**
  * Languages offered for `--translate-from` / `--translate-to`, taken from Subtitle Edit's list (the LLM engines'
  * `ChatGptTranslate.ListLanguages`): the list the installer saved for the installed seconv, or the bundled
- * `languages.json` when there is none (seconv from the PATH, or the save failed). seconv accepts a code or an English
- * name; which languages are really supported depends on the engine, so other values can still be typed into config.json.
+ * `languages.json` when there is none (seconv put in lib/seconv by hand, or the save failed). seconv accepts a code or an English
+ * name; which languages are really supported depends on the engine, so other values can still be typed into a profile.
  * Mutated in place by `reloadLanguages`, so imports always see the current list.
  */
 export const LANGUAGES: { name: string; code: string }[] = [];
@@ -77,12 +80,15 @@ reloadLanguages();
 const defaults: Config = defaultConfig;
 
 /**
- * Valid `--translate-engine` values. The list lives in `default-config.json` (one entry per engine), taken from the SeConv docs
- * because seconv has no command to list them: https://subtitleedit.github.io/subtitleedit/reference/command-line.html
+ * The `--translate-engine` values the app offers: one entry each in `default-config.json`. seconv takes more (see
+ * https://subtitleedit.github.io/subtitleedit/reference/command-line.html), and one typed into a profile still works.
  */
 export const TRANSLATE_ENGINES = Object.keys(defaults.engines);
 
-export const configPath = path.resolve("config.json");
+/** One .json file per profile */
+const PROFILES_DIR = path.resolve("profiles");
+/** Settings of the app rather than of a profile: which profile is loaded */
+const appPath = path.resolve("config.json");
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
@@ -111,12 +117,16 @@ const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
   };
 };
 
-/** Builds a valid `Config` from untrusted input: wrong types / missing keys fall back to defaults, strings are trimmed. */
-const normalize = (raw: unknown): Config => {
+/**
+ * Builds a valid `Config` from untrusted input: wrong types / missing keys fall back to defaults, strings are trimmed.
+ * A blank name falls back to `name`.
+ */
+const normalize = (raw: unknown, name = defaults.name): Config => {
   const input = isRecord(raw) ? raw : {};
   const result = structuredClone(defaults);
 
   // Blank values fall back to the default, except translateFrom where blank means auto-detect
+  result.name = str(input.name) || name;
   result.translateEngine = str(input.translateEngine) || defaults.translateEngine;
   result.translateFrom = str(input.translateFrom) ?? defaults.translateFrom;
   result.translateTo = str(input.translateTo) || defaults.translateTo;
@@ -124,12 +134,7 @@ const normalize = (raw: unknown): Config => {
   const extensions = list(input.subtitleExtensions);
   result.subtitleExtensions = extensions.length ? extensions : defaults.subtitleExtensions;
 
-  // Config files from before per-engine settings kept one model/url/args set; it belonged to the engine that was selected
-  const engines: Record<string, unknown> = isRecord(input.engines) ? { ...input.engines } : {};
-  if (!isRecord(input.engines) && ("translateModel" in input || "translateUrl" in input || "seconvAdditionalArgs" in input)) {
-    engines[result.translateEngine] = { model: input.translateModel, url: input.translateUrl, additionalArgs: input.seconvAdditionalArgs };
-  }
-
+  const engines: Record<string, unknown> = isRecord(input.engines) ? input.engines : {};
   // Every known engine gets an entry, plus any hand-typed engine that is selected or already configured
   const names = new Set([...TRANSLATE_ENGINES, ...Object.keys(engines), result.translateEngine]);
   result.engines = Object.fromEntries([...names].map((name) => [name, normalizeEngine(engines[name], defaults.engines[name])]));
@@ -137,30 +142,166 @@ const normalize = (raw: unknown): Config => {
   return result;
 };
 
-const load = (): Config => {
+const fileStem = (file: string) => file.replace(/\.json$/i, "");
+
+/** The profiles, sorted by name. One whose file has no name, or can't be read, goes by its file name. */
+export const listProfiles = () => {
+  const profiles: { file: string; name: string }[] = [];
   try {
-    return normalize(JSON.parse(Deno.readTextFileSync(configPath)));
-  } catch (e) {
-    if (e instanceof Deno.errors.NotFound) {
-      const initial = normalize({});
-      Deno.writeTextFileSync(configPath, JSON.stringify(initial, null, 2));
-      return initial;
+    for (const entry of Deno.readDirSync(PROFILES_DIR)) {
+      if (!entry.isFile || !entry.name.toLowerCase().endsWith(".json")) {
+        continue;
+      }
+      let name;
+      try {
+        const raw = JSON.parse(Deno.readTextFileSync(path.join(PROFILES_DIR, entry.name)));
+        name = isRecord(raw) ? str(raw.name) : undefined;
+      } catch { /* loading it says what's wrong */ }
+      profiles.push({ file: entry.name, name: name || fileStem(entry.name) });
     }
-    // Don't overwrite a config the user may want to fix by hand
-    logger.warn(`Failed to read ${configPath}, using defaults. ${e}`);
-    return normalize({});
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) {
+      throw e;
+    }
+  }
+  return profiles.sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const readProfile = (file: string): Config => {
+  try {
+    return normalize(JSON.parse(Deno.readTextFileSync(path.join(PROFILES_DIR, file))), fileStem(file));
+  } catch (e) {
+    // Don't overwrite a profile the user may want to fix by hand
+    logger.warn(`Failed to read the profile ${file}, using defaults. ${e}`);
+    return normalize({}, fileStem(file));
   }
 };
 
-/** Shared, typed configuration. Mutated in place by `updateConfig`, so imports always see current values. */
+const writeProfile = (file: string, settings: Config) => {
+  Deno.mkdirSync(PROFILES_DIR, { recursive: true });
+  Deno.writeTextFileSync(path.join(PROFILES_DIR, file), JSON.stringify(settings, null, 2));
+};
+
+const writeApp = (profile: string) => Deno.writeTextFileSync(appPath, JSON.stringify({ profile }, null, 2));
+
+/**
+ * The file for a profile named `name`: the name in kebab-case, stripped of everything but letters and digits ("Local (copy)"
+ * is local-copy.json), with -2, -3, ... when another profile has that file. `own` is the profile's current file.
+ */
+const fileFor = (name: string, own = "") => {
+  const kebab = name.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "profile";
+  // Windows reserves these device names, whatever the extension
+  const base = /^(con|prn|aux|nul|com\d|lpt\d)$/.test(kebab) ? `${kebab}-profile` : kebab;
+  const taken = new Set(listProfiles().map((p) => p.file.toLowerCase()));
+  taken.delete(own.toLowerCase());
+  let file = `${base}.json`;
+  for (let n = 2; taken.has(file); n++) {
+    file = `${base}-${n}.json`;
+  }
+  return file;
+};
+
+/** Saves `settings` as a new profile, in the file its name gives, and returns that file. */
+const createProfile = (settings: Config) => {
+  const file = fileFor(settings.name);
+  writeProfile(file, settings);
+  return file;
+};
+
+/** `base`, or `base 2`, `base 3`, ... when a profile already has that name */
+export const uniqueName = (base: string) => {
+  const names = new Set(listProfiles().map((p) => p.name));
+  let name = base;
+  for (let n = 2; names.has(name); n++) {
+    name = `${base} ${n}`;
+  }
+  return name;
+};
+
+/** The loaded profile's file in `profiles/` */
+let profileFile = "";
+export const currentProfile = () => profileFile;
+/** Counts profile loads, but not renames, so the page can tell its form shows a profile that's no longer loaded */
+let loads = 0;
+export const profileLoads = () => loads;
+
+/** Loads the profile config.json names, else the first one; on a first launch, creates the default and OpenRouter profiles. */
+const load = (): Config => {
+  let wanted: unknown;
+  try {
+    wanted = JSON.parse(Deno.readTextFileSync(appPath)).profile;
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) {
+      logger.warn(`Failed to read ${appPath}. ${e}`);
+    }
+  }
+
+  const profiles = listProfiles();
+  let file = profiles.find((p) => p.file === wanted)?.file ?? profiles[0]?.file;
+  if (!file) {
+    file = createProfile(normalize({}));
+    createProfile(normalize(openRouterProfile));
+  }
+  if (file !== wanted) {
+    writeApp(file);
+  }
+  profileFile = file;
+  return readProfile(file);
+};
+
+/** The loaded profile's settings. Mutated in place, so imports always see current values. */
 export const config: Config = load();
 
 /** Settings of the currently selected translation engine. */
 export const engineConfig = (): EngineConfig => config.engines[config.translateEngine];
 
-/** Validates `raw`, applies it to the shared `config`, and persists it to `config.json`. */
+/** Validates `raw`, applies it to the shared `config`, and saves it to the loaded profile. A blank name keeps the current one. */
 export const updateConfig = (raw: unknown): Config => {
-  Object.assign(config, normalize(raw));
-  Deno.writeTextFileSync(configPath, JSON.stringify(config, null, 2));
+  Object.assign(config, normalize(raw, config.name));
+  writeProfile(profileFile, config);
   return config;
+};
+
+const select = (file: string, settings: Config) => {
+  Object.assign(config, settings);
+  profileFile = file;
+  loads++;
+  writeApp(file);
+};
+
+/** Loads another profile from `profiles/`. */
+export const switchProfile = (file: string) => {
+  if (!listProfiles().some((p) => p.file === file)) {
+    throw new Error(`There is no profile ${file} in ${PROFILES_DIR}.`);
+  }
+  select(file, readProfile(file));
+};
+
+const addProfile = (settings: Config) => select(createProfile(settings), settings);
+
+/** Creates a profile with the default settings and loads it. */
+export const newProfile = (name: string) => addProfile(normalize({}, name));
+
+/** Copies the loaded profile into a new one and loads it. */
+export const duplicateProfile = (name: string) => addProfile({ ...structuredClone(config), name });
+
+/** Renames the loaded profile, and its file to match. */
+export const renameProfile = (name: string) => {
+  const file = fileFor(name, profileFile);
+  if (file !== profileFile) {
+    Deno.renameSync(path.join(PROFILES_DIR, profileFile), path.join(PROFILES_DIR, file));
+    profileFile = file;
+    writeApp(file);
+  }
+  updateConfig({ ...config, name });
+};
+
+/** Deletes the loaded profile's file and loads the first profile left. */
+export const deleteProfile = () => {
+  const rest = listProfiles().filter((p) => p.file !== profileFile);
+  if (!rest.length) {
+    throw new Error("The last profile can't be deleted.");
+  }
+  Deno.removeSync(path.join(PROFILES_DIR, profileFile));
+  switchProfile(rest[0].file);
 };
