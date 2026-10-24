@@ -2,7 +2,7 @@
 A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [SeConv CLI](https://subtitleedit.github.io/subtitleedit/reference/command-line.html) tool that lets you batch-translate various lyric files. Originally created for use with Kikoeru but adjusted to work with any folder structure.
 
 ## Usage
-**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)) in `lib/seconv/`. If it isn't there, click **Download latest pre-release** in the app. On Windows, the app also needs the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (part of Windows 11) and the Visual C++ 2015-2022 x64 runtime.
+**Requirement:** `seconv` (from [Subtitle Edit](https://github.com/SubtitleEdit/subtitleedit/releases)) in `lib/seconv/`. If it isn't there, click **Download latest pre-release** in the app.
 
 1) Download the latest release from [here](https://github.com/Makar8000/seconv-kikoeru/releases/latest) and extract it.
 2) Run `seconv-kikoeru`.
@@ -11,10 +11,10 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 5) Place the files you want to translate in the queue folder (or set another folder in the app)
 6) Click **Start translation**. Progress (by line count) and log output are shown in the window.
 
-Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped.
+Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped. The window's browser cache lives in `.webview2/` next to the app.
 
 ## Configuration
-Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** dropdown in the header switches between profiles, and the **Profile** menu creates new ones (see [Menu](#menu)).
+Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** dropdown in the header switches between profiles, and the **Profile** menu creates, copies, renames and deletes them (see [Menu](#menu)).
 
 Three profiles are provided by default:
 - `Local llama.cpp` - The local `llamacpp` engine with [Tencent's Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B-GGUF) (see [Local llama.cpp](#local-llamacpp)).
@@ -50,7 +50,7 @@ Everything it starts comes from `lib/llama.cpp/`:
 - `lib/llama.cpp/config.ini` - created on first use and read by llama-server at startup. It turns off llama-server's web page and `/slots` endpoint, stops other websites from reading its responses, and blocks downloads. Keys are llama-server's command-line options without the leading `--`; the app's own flags (model, host, port, ...) take precedence.
 
 ### seconv-kikoeru config
-- `name` - The profile's name, shown in the **Profile** menu and the window title.
+- `name` - The profile's name, shown in the **Profile** dropdown and the window title.
 - `rjPath` - The folder that contains all of your lyric/subtitle files that need to be translated. Searched recursively. Defaults to `./queue`.
 - `subtitleExtensions` - The file extensions to parse. Defaults to `lrc`, `srt`, `vtt`.
 
@@ -59,19 +59,16 @@ Everything it starts comes from `lib/llama.cpp/`:
 - **Profile → Duplicate** - Asks for a name, then copies the loaded profile into a new one and loads it.
 - **Profile → Rename** - Renames the loaded profile.
 - **Profile → Delete** - Asks for confirmation, then deletes the loaded profile's file and loads the first profile left. The last profile can't be deleted.
-- **Profile dropdown** (in the window's header) - Loads the selected profile. The loaded one's name is in the window title.
 - **Tools → Update seconv** - Downloads the latest pre-release of seconv into `lib/seconv/`.
 - **Tools → Update llama.cpp** - Downloads the latest llama.cpp release into `lib/llama.cpp/bin/` (Windows only, see [Local llama.cpp](#local-llamacpp)).
 - **Tools → Restore backups** - Asks for confirmation, then restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
 
-The above menu options are unavailable while a translation, download or restore is already running.
+The menu actions and the **Profile** dropdown refuse to run while a translation, download or restore is already running.
 
 ## Running from source
-This project requires [Bun](https://bun.com/) 1.4+.
+This project requires [Bun](https://bun.com/) 1.4.4+. On Linux, the window needs WebKitGTK 4.1 and libxdo.
 
 1) `bun install`
-2) `bun run dev` (runs the app, restarting it when a source file changes) or `bun run build` (builds the Windows app into `bin/seconv-kikoeru/`: the executable and the webview addon next to it)
+2) `bun run dev` (runs the app, restarting it when a source file changes) or `bun run build` (builds the Windows app into `bin/seconv-kikoeru/`)
 
-`bun run check` type-checks the project with `tsc`, `bun run lint` runs Biome (formatter and linter) and `bun run lint:fix` applies its fixes.
-
-The window is the system WebView, through [@webviewjs/webview](https://github.com/webviewjs/webview): WebView2 on Windows, WebKitGTK 4.1 on Linux, WebKit on macOS. The browser data it keeps (cache, cookies) goes to `.webview2/` inside the app folder.
+`bun run check` type-checks, `bun run lint` runs Biome and `bun run lint:fix` applies its fixes.

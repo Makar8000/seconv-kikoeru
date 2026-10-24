@@ -50,5 +50,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: release/seconv-kikoeru.zip
-          name: ${{ steps.define-version.outputs.commit }}
           prerelease: false

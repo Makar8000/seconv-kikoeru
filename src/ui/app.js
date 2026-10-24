@@ -44,8 +44,8 @@ const setValue = (f, v) => {
 };
 let engines = {};
 let shownEngine = "";
-// Which profile load the form shows (it counts loads, not renames). Saves name it, so an edit made just before the
-// menu loaded another profile isn't saved into that one
+// Which profile load the form shows (it counts loads, not renames). Saves name it, so an edit made just before
+// another profile was loaded isn't saved into that one
 let shownLoad = -1;
 
 const readEngine = () => ({
@@ -280,7 +280,7 @@ const poll = async () => {
     $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
     $("status").textContent = s.total ? `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines` : "";
     setSeconvFound(s.seconvFound);
-    // A profile picked in the menu: show its settings
+    // Another profile was loaded (the dropdown, or a menu action): show its settings
     if (s.load !== shownLoad) {
       api("GET", "/api/config")
         .then(fill)

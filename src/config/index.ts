@@ -12,7 +12,7 @@ import bundledLanguages from "./languages.json" with { type: "json" };
  * See `default-profiles/default-config.json` for the settings of a new profile.
  *
  * SeConv options: https://subtitleedit.github.io/subtitleedit/reference/command-line.html
- * - `name`: the profile's name in the Profile menu
+ * - `name`: the profile's name in the page's profile dropdown and the window title
  * - `translateFrom`: if empty, auto-detect
  * - `engines`: one settings entry per translation engine (see `EngineConfig`); only the selected `translateEngine` is used
  * - `rjPath`: folder searched recursively for files to translate
