@@ -194,7 +194,8 @@ h1 {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 7px 10px;
   background: var(--bg);
@@ -204,15 +205,18 @@ select {
   font: inherit;
   transition: border-color 0.12s;
 }
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: #5d6575;
 }
 input:hover,
-select:hover {
+select:hover,
+textarea:hover {
   border-color: #465066;
 }
 input:focus,
 select:focus,
+textarea:focus,
 button:focus-visible {
   outline: none;
   border-color: var(--accent);
@@ -222,8 +226,17 @@ input.error {
   border-color: var(--danger);
 }
 input:disabled,
-select:disabled {
+select:disabled,
+textarea:disabled {
   opacity: 0.45;
+}
+/* The prompt: one line like the inputs while empty, then grows with its text up to a few lines */
+textarea {
+  display: block;
+  resize: vertical;
+  field-sizing: content;
+  max-height: 8lh;
+  line-height: 1.4;
 }
 input[type="checkbox"] {
   width: auto;

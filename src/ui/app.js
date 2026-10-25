@@ -342,6 +342,7 @@ globalThis.setQueueFolder = (folder) => {
 
 // ---- run / stop / progress ----
 let running = false; // as of the last poll; the one button stops the run while there is one, else starts one
+const scanTitle = $("scan").title; // what Scan does; replaced by the reason while it's disabled
 $("run").addEventListener("click", async () => {
   try {
     if (running) {
@@ -476,8 +477,21 @@ const poll = async () => {
     $("run").textContent = running ? "Stop" : "Start translation";
     $("run").classList.toggle("danger", running);
     $("run").classList.toggle("primary", !running);
-    $("run").disabled = !running && (busy || seconvMissing || !s.queueFound);
-    $("scan").disabled = busy || seconvMissing || !s.queueFound;
+    // Why Start and Scan can't be clicked, as their tooltip
+    let blocked = "";
+    if (s.installing) {
+      blocked = "A download is running";
+    } else if (s.restoring) {
+      blocked = "Backups are being restored";
+    } else if (seconvMissing) {
+      blocked = "seconv was not found";
+    } else if (!s.queueFound) {
+      blocked = "The queue directory was not found";
+    }
+    $("run").disabled = !running && blocked !== "";
+    $("run").title = $("run").disabled ? blocked : "";
+    $("scan").disabled = running || blocked !== "";
+    $("scan").title = blocked || scanTitle;
     // A run reads the settings as it goes, so they're locked until it's over (the server refuses a profile switch too)
     $("settings").disabled = busy;
     $("profile").disabled = busy;
