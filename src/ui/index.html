@@ -35,7 +35,7 @@
           </div>
           <div class="field">
             <label for="translateModel">Model</label>
-            <input id="translateModel" data-key="model" data-engine placeholder="First available" spellcheck="false">
+            <input id="translateModel" data-key="model" autocomplete="off" data-engine placeholder="First available" spellcheck="false">
           </div>
           <div class="field">
             <label for="translateFrom">Translate from</label>
@@ -47,7 +47,7 @@
           </div>
           <div class="field full">
             <label for="translateUrl">Server URL</label>
-            <input id="translateUrl" data-key="url" data-engine spellcheck="false">
+            <input id="translateUrl" data-key="url" autocomplete="off" data-engine spellcheck="false">
           </div>
           <div class="field full" data-engines="openai-compatible deepl">
             <label for="translateApiKey">API key</label>
@@ -59,23 +59,23 @@
               <label
                 class="check"><input id="useCustomPrompt" type="checkbox" data-key="useCustomPrompt" data-engine> Use this prompt instead of seconv's default</label>
             </div>
-            <input id="translatePrompt" data-key="prompt" data-engine placeholder="Leave empty to use seconv's default" spellcheck="false">
+            <input id="translatePrompt" data-key="prompt" autocomplete="off" data-engine placeholder="Leave empty to use seconv's default" spellcheck="false">
           </div>
           <div class="field" data-engines="llamacpp">
             <label for="temperature">Temperature</label>
-            <input id="temperature" type="number" min="0" step="0.05" data-key="temperature" data-engine>
+            <input id="temperature" type="number" min="0" step="0.05" data-key="temperature" autocomplete="off" data-engine>
           </div>
           <div class="field" data-engines="llamacpp">
             <label for="topP">Top-p</label>
-            <input id="topP" type="number" min="0" max="1" step="0.05" data-key="topP" data-engine>
+            <input id="topP" type="number" min="0" max="1" step="0.05" data-key="topP" autocomplete="off" data-engine>
           </div>
           <div class="field" data-engines="llamacpp">
             <label for="topK">Top-k</label>
-            <input id="topK" type="number" min="0" step="1" data-key="topK" data-engine>
+            <input id="topK" type="number" min="0" step="1" data-key="topK" autocomplete="off" data-engine>
           </div>
           <div class="field" data-engines="llamacpp">
             <label for="repeatPenalty">Repeat penalty</label>
-            <input id="repeatPenalty" type="number" min="0" step="0.05" data-key="repeatPenalty" data-engine>
+            <input id="repeatPenalty" type="number" min="0" step="0.05" data-key="repeatPenalty" autocomplete="off" data-engine>
           </div>
           <div class="field full">
             <label for="additionalArgs-input">Additional arguments</label>
@@ -90,7 +90,7 @@
         <div class="fields">
           <div class="field half">
             <label for="rjPath">Queue directory</label>
-            <input id="rjPath" data-key="rjPath" spellcheck="false">
+            <input id="rjPath" data-key="rjPath" autocomplete="off" spellcheck="false">
             <div class="hint-row">
               <small class="hint">Or drop a folder anywhere on the window</small>
               <small class="hint error" id="rjPathError" hidden>Folder not found</small>

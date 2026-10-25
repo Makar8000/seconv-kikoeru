@@ -73,6 +73,7 @@ export const openWindow = async (url: string) => {
   const view = win.createWebview({
     url,
     webContext: context,
+    incognito: true,
     // The view shows the app's page only. A website link (target="_blank") goes to the system browser instead of the
     // popup window WebView2 would otherwise open on the app's browser profile.
     navigationHandler: (target) => {

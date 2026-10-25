@@ -107,6 +107,7 @@ const renderList = (l, values) => {
   const input = document.createElement("input");
   input.id = `${l.dataset.list}-input`;
   input.spellcheck = false;
+  input.autocomplete = "off";
   const commit = () => {
     if (addChip(l, input.value)) {
       save();
