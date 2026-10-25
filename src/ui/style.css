@@ -308,14 +308,18 @@ button svg,
   opacity: 1;
 }
 
-/* ---- run bar ---- */
-.runbar {
+/* ---- run section: the bar on top, then the phase, the counts and the start/stop button ---- */
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.run-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 .progress {
-  flex: 1;
   height: 8px;
   background: var(--surface-2);
   border-radius: 999px;
@@ -334,10 +338,13 @@ button svg,
 .progress.done > div {
   background: var(--ok);
 }
+#phase,
 #status {
-  min-width: 72px; /* fixed width so the bar doesn't resize as the numbers grow */
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+#status {
+  margin-left: auto; /* right-aligned, next to the button */
 }
 
 /* ---- console ---- */

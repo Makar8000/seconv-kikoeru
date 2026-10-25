@@ -1,7 +1,6 @@
 import path from "node:path";
 import { config, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
-import { heartbeat } from "../utils/heartbeat.ts";
 import { run } from "../utils/process.ts";
 import { llamaCppUrl, usesLlamaCpp } from "./llamacpp.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
@@ -116,14 +115,8 @@ export const translateWithSeConv = async (filePath: string, format: string, abor
 
   logger.info(`Translating ${path.relative(config.rjPath, absoluteFilePath)} (${format})...`);
   const startedAt = Date.now();
-  const stopHeartbeat = heartbeat("Still translating...");
   // A non-zero exit still resolves: seconv reports per-file failures in its JSON output
-  let code: number | null, signal: string | null, stdout: string, stderr: string;
-  try {
-    ({ code, signal, stdout, stderr } = await run(exe, args, { signal: abortSignal }));
-  } finally {
-    stopHeartbeat();
-  }
+  const { code, signal, stdout, stderr } = await run(exe, args, { signal: abortSignal });
 
   const stderrText = stderr.trim();
   if (stderrText) {

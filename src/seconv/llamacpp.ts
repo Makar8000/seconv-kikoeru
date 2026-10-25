@@ -2,7 +2,6 @@ import { type ChildProcess, spawn } from "node:child_process";
 import path from "node:path";
 import { config, type EngineConfig, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
-import { heartbeat } from "../utils/heartbeat.ts";
 import { run } from "../utils/process.ts";
 import { installLlamaCpp } from "./installer.ts";
 import {
@@ -120,7 +119,7 @@ const llamaDownload = async (args: string[], signal: AbortSignal) => {
  * The .gguf to serve for the model setting: a Hugging Face file link or repository (user/repo or user/repo:quant),
  * downloaded into lib/llama.cpp/models by llama.cpp's own downloader the first time; or a file name in that folder.
  */
-const resolveModel = async (model: string, signal: AbortSignal) => {
+const resolveModel = async (model: string, signal: AbortSignal, onPhase: (phase: string) => void) => {
   const url = HF_FILE_URL.exec(model);
   if (!url && !model.includes("/")) {
     return findModel(model);
@@ -143,12 +142,8 @@ const resolveModel = async (model: string, signal: AbortSignal) => {
     throw new Error(`The app's folder path is too long for llama.cpp's downloader. Move the app to a shorter path, like C:\\seconv-kikoeru.`);
   }
   logger.info(`Downloading ${model} into ${LLAMACPP_MODELS}, this may take a while...`);
-  const stopHeartbeat = heartbeat("Still downloading the model...");
-  try {
-    return await llamaDownload(args, signal);
-  } finally {
-    stopHeartbeat();
-  }
+  onPhase("Downloading model");
+  return llamaDownload(args, signal);
 };
 
 /** llama-server flags for the model's family, as seconv picks them for its own server (InferChatTemplate). */
@@ -207,12 +202,13 @@ const startServer = async (model: string, port: number, signal: AbortSignal) => 
 /**
  * Makes sure a llama.cpp server answers at the llamacpp URL. One that's already running there is used as it is.
  * Otherwise llama.cpp (when missing) and the model are downloaded, and llama-server is started on the URL's port
- * until stopLlamaServer().
+ * until stopLlamaServer(). `onPhase` is told about the long steps (the downloads, the model loading).
  */
-export const openLlamaCpp = async (signal: AbortSignal) => {
+export const openLlamaCpp = async (signal: AbortSignal, onPhase: (phase: string) => void) => {
   const url = new URL(llamaCppUrl());
   const found = await probe(url.origin);
   if (found === "llama.cpp") {
+    onPhase("Loading model");
     await waitUntilReady(url.origin, signal);
     // A llama-server this app started lives on when the app is force-killed, maybe with another profile's model
     const served = await servedModel(url.origin);
@@ -232,11 +228,13 @@ export const openLlamaCpp = async (signal: AbortSignal) => {
   }
 
   if (!findLlamaServer()) {
+    onPhase("Downloading llama.cpp");
     await installLlamaCpp(signal);
   }
-  const model = await resolveModel(engineConfig().model, signal);
+  const model = await resolveModel(engineConfig().model, signal, onPhase);
   const port = Number(url.port) || 80;
   logger.info(`Starting llama-server on port ${port} with ${path.basename(model)}...`);
+  onPhase("Loading model");
   await startServer(model, port, signal);
   logger.info("llama-server is ready.");
 };

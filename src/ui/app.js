@@ -253,8 +253,13 @@ globalThis.confirmQuit = (reason) => {
 };
 
 // ---- run / stop / progress ----
-$("start").addEventListener("click", async () => {
+let running = false; // as of the last poll; the one button stops the run while there is one, else starts one
+$("run").addEventListener("click", async () => {
   try {
+    if (running) {
+      await api("POST", "/api/stop");
+      return;
+    }
     clearTimeout(saveTimer);
     await api("POST", "/api/config", read());
     await api("POST", "/api/start");
@@ -270,7 +275,17 @@ $("installSeconv").addEventListener("click", async () => {
     log("error", e.message);
   }
 });
-$("stop").addEventListener("click", () => api("POST", "/api/stop").catch((e) => log("error", e.message)));
+/** `ms` as m:ss, or h:mm:ss from an hour on */
+const elapsed = (ms) => {
+  const total = Math.floor(ms / 1000);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = String(total % 60).padStart(2, "0");
+  if (hours) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`;
+  }
+  return `${minutes}:${seconds}`;
+};
 
 let since = 0;
 let wasInstalling = false;
@@ -281,20 +296,44 @@ const poll = async () => {
       log(l.level, l.text);
       since = l.id;
     });
-    // A run first inspects every pending file (muted bar), then translates (accent bar)
+    // A run first sets up (its phase), then inspects every pending file (muted bar), then translates (accent bar).
+    // Under the bar: the phase or the percentage on the left, the counts, elapsed time and ETA on the right.
     const inspecting = s.running && s.inspected < s.toInspect;
     let pct = 0;
+    let phase = "";
     let status = "";
-    if (inspecting) {
+    if (s.running && s.phase) {
+      phase = s.phase;
+    } else if (inspecting) {
       pct = Math.round((s.inspected / s.toInspect) * 100);
-      status = `Inspecting ${s.inspected} / ${s.toInspect} files`;
+      phase = `Inspecting ${s.inspected} / ${s.toInspect} files`;
     } else if (s.total) {
       pct = Math.round((s.done / s.total) * 100);
-      status = `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines`;
+      phase = `${pct}%`;
+      status = `${s.filesDone} / ${s.filesTotal} files · ${s.done} / ${s.total} lines`;
+    }
+    const done = !s.running && s.total > 0 && s.done >= s.total;
+    if (done) {
+      phase = "Done";
+    }
+    if (s.startedAt) {
+      // The run's elapsed time (frozen once it's over), then the ETA: lines per second since the first file started,
+      // once two files or a tenth of the lines are done, so that one file's pace doesn't set it
+      const parts = [];
+      if (status) {
+        parts.push(status);
+      }
+      parts.push(elapsed((s.finishedAt || Date.now()) - s.startedAt));
+      if (s.running && !inspecting && s.translatingAt && s.done > 0 && (s.filesDone >= 2 || s.done >= s.total / 10)) {
+        const linesPerMs = s.done / (Date.now() - s.translatingAt);
+        parts.push(`ETA ${elapsed((s.total - s.done) / linesPerMs)}`);
+      }
+      status = parts.join(" · ");
     }
     $("bar").style.width = `${pct}%`;
     $("progress").classList.toggle("inspecting", inspecting);
-    $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
+    $("progress").classList.toggle("done", done);
+    $("phase").textContent = phase;
     $("status").textContent = status;
     setSeconvFound(s.seconvFound);
     // Another profile was loaded (the dropdown, or a menu action): show its settings
@@ -311,15 +350,33 @@ const poll = async () => {
     }
     wasInstalling = s.installing;
     const busy = s.running || s.installing || s.restoring;
-    $("pill").textContent = s.running ? "Running" : s.installing ? "Downloading" : s.restoring ? "Restoring" : "Idle";
+    // A run's pill: its set-up phase while there is one, then what the counts say
+    let pill = "Idle";
+    if (s.running) {
+      if (s.phase) {
+        pill = s.phase;
+      } else if (inspecting) {
+        pill = "Inspecting";
+      } else {
+        pill = "Translating";
+      }
+    } else if (s.installing) {
+      pill = "Downloading";
+    } else if (s.restoring) {
+      pill = "Restoring";
+    }
+    $("pill").textContent = pill;
     $("pill").classList.toggle("running", s.running);
-    $("start").disabled = busy || seconvMissing;
+    running = s.running;
+    $("run").textContent = running ? "Stop" : "Start translation";
+    $("run").classList.toggle("danger", running);
+    $("run").classList.toggle("primary", !running);
+    $("run").disabled = !running && (busy || seconvMissing);
     // A run reads the settings as it goes, so they're locked until it's over (the server refuses a profile switch too)
     $("settings").disabled = busy;
     $("profile").disabled = busy;
     $("installSeconv").disabled = busy;
     $("installSeconv").textContent = s.installing ? "Downloading…" : "Download latest pre-release";
-    $("stop").hidden = !s.running;
   } catch {
     /* server not ready yet */
   }

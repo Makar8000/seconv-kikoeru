@@ -36,8 +36,12 @@ const asset = (route: string) => {
   return new Response(Bun.file(path.join(import.meta.dir, "ui", file)), { headers: { "content-type": type } });
 };
 
-export type State = { running: boolean; installing: boolean; restoring: boolean } & Progress;
-export const state: State = { running: false, installing: false, restoring: false, ...noProgress() };
+/**
+ * `phase`: what a run does before its files' progress says it (the llama.cpp set-up, the scan of the queue folder).
+ * `startedAt` / `finishedAt`: the last run's times (ms since the epoch; 0 when none), for the elapsed time in the page.
+ */
+export type State = { running: boolean; installing: boolean; restoring: boolean; phase: string; startedAt: number; finishedAt: number } & Progress;
+export const state: State = { running: false, installing: false, restoring: false, phase: "", startedAt: 0, finishedAt: 0, ...noProgress() };
 
 /** Why the app is busy, or "" when it's idle. */
 export const busyReason = () =>
@@ -56,17 +60,23 @@ const start = () => {
   }
   const controller = new AbortController();
   abort = controller;
-  Object.assign(state, { running: true, ...noProgress() });
+  Object.assign(state, { running: true, phase: "Starting", startedAt: Date.now(), finishedAt: 0, ...noProgress() });
   hooks.stateChanged();
   logger.info("Starting translation...");
+  const setPhase = (phase: string) => {
+    state.phase = phase;
+    hooks.stateChanged();
+  };
   const translate = async () => {
     // llama.cpp: the server already running at its URL, or one started for this run (downloaded first if needed)
     if (usesLlamaCpp()) {
-      await openLlamaCpp(controller.signal);
+      await openLlamaCpp(controller.signal, setPhase);
     }
+    setPhase("Scanning");
     try {
       await runTranslation((p) => {
         Object.assign(state, p);
+        state.phase = ""; // from the first progress on, the counts say what's happening
         hooks.stateChanged();
       }, controller.signal);
     } finally {
@@ -78,6 +88,8 @@ const start = () => {
     .catch((e) => (controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e)))
     .finally(() => {
       state.running = false;
+      state.phase = "";
+      state.finishedAt = Date.now();
       hooks.stateChanged();
     });
 };

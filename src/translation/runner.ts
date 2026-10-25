@@ -6,9 +6,20 @@ import { findSubtitleFilesByRjCode } from "./fileDiscovery.ts";
 import type { TranslationErrorEntry } from "./manifest.ts";
 import { type PlannedFile, pendingFiles, recordSkipped, translateFiles } from "./translator.ts";
 
-/** Progress: files inspected while planning, then lines (`done` / `total`, for the bar) and files (for the status text). */
-export type Progress = { inspected: number; toInspect: number; done: number; total: number; filesDone: number; filesTotal: number };
-export const noProgress = (): Progress => ({ inspected: 0, toInspect: 0, done: 0, total: 0, filesDone: 0, filesTotal: 0 });
+/**
+ * Progress: files inspected while planning, then lines (`done` / `total`, for the bar) and files (for the status text).
+ * `translatingAt` is when the first file's translation started (0 before): the page's ETA counts from there.
+ */
+export type Progress = {
+  inspected: number;
+  toInspect: number;
+  done: number;
+  total: number;
+  filesDone: number;
+  filesTotal: number;
+  translatingAt: number;
+};
+export const noProgress = (): Progress => ({ inspected: 0, toInspect: 0, done: 0, total: 0, filesDone: 0, filesTotal: 0, translatingAt: 0 });
 
 /** Translates everything pending under the configured queue folder, reporting progress as it goes. */
 export const runTranslation = async (onProgress: (progress: Progress) => void, signal?: AbortSignal) => {
@@ -51,6 +62,7 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
       logger.info(`${rjcode}: ${planned.filter((p) => !p.error).length} file(s), ${lines} line(s) to translate`);
     }
   }
+  progress.translatingAt = Date.now();
   onProgress({ ...progress });
 
   // Keep track of any failed translations across this run

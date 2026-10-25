@@ -90,7 +90,10 @@ export const openWindow = async (url: string) => {
     }
     let phase = "";
     let bar = ProgressBarState.None;
-    if (inspecting) {
+    if (state.phase) {
+      phase = `${state.phase} - `;
+      bar = ProgressBarState.Indeterminate;
+    } else if (inspecting) {
       phase = `Inspecting ${state.inspected}/${state.toInspect} - `;
       bar = ProgressBarState.Indeterminate;
     } else if (state.running) {
