@@ -31,7 +31,7 @@ These are basic configurations sent to seconv. For more information on each opti
 - `engines` - Settings for each translation engine. Every engine has its own entry, so switching engines in the app never loses what you set for another one. Only the selected `translateEngine` is used when translating. Each entry has:
   - `model` - The model to use. Only used by `llamacpp` and `openai-compatible`.
     - For `llamacpp`: a Hugging Face link to a `.gguf` file, or `user/repo` / `user/repo:quant`, downloaded into `lib/llama.cpp/models/` the first time; or the file name of a model in that folder. Defaults to `tencent/Hy-MT2-7B-GGUF:Q4_K_M` (Tencent's Hy-MT2 7B).
-  - `url` - The url of the translation server. If empty, seconv's default for the engine is used; the field shows it (`openai-compatible`: `http://localhost:8000/v1/chat/completions`, a server on your own machine).
+  - `url` - The url of the translation server. If empty, seconv's default for the engine is used.
     - For `llamacpp`: a llama.cpp server already running at this URL is used. Otherwise the app starts one there for the run (see [Local llama.cpp](#local-llamacpp)). Defaults to `http://127.0.0.1:8080/`.
   - `apiKey` - The API key for the translation service. Only used by `openai-compatible` and `deepl`. Stored in plain text in the profile's file.
   - `useCustomPrompt` - If `false`, `prompt` is kept but not sent, so seconv uses its own default prompt. Defaults to `true` for `llamacpp` and `openai-compatible`.
