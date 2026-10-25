@@ -51,7 +51,7 @@ Everything it starts comes from `lib/llama.cpp/`:
 
 ### seconv-kikoeru config
 - `name` - The profile's name, shown in the **Profile** dropdown and the window title.
-- `rjPath` - The folder that contains all of your lyric/subtitle files that need to be translated. Searched recursively. Defaults to `./queue`. Dropping a folder onto the window's title bar or menu bar sets it too.
+- `rjPath` - The folder that contains all of your lyric/subtitle files that need to be translated. Searched recursively. Defaults to `./queue`. Supports drag & drop.
 - `subtitleExtensions` - The file extensions to parse. Defaults to `lrc`, `srt`, `vtt`.
 
 ## Menu

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { busyReason, hooks, install, installLlama, state } from "./api.ts";
 import { config, uniqueName } from "./config/index.ts";
 import { logger } from "./logger.ts";
@@ -74,7 +75,19 @@ export const openWindow = async (url: string) => {
     webContext: context,
     // The view shows the app's page only. A website link (target="_blank") goes to the system browser instead of the
     // popup window WebView2 would otherwise open on the app's browser profile.
-    navigationHandler: (target) => target.startsWith(url) || target === "about:blank",
+    navigationHandler: (target) => {
+      // A file or folder dropped on the page: WebView2 would open it, and that navigation is the only place the page's
+      // drops come with a path (the page itself gets File objects without one). Take the path, cancel the navigation.
+      if (target.startsWith("file:")) {
+        try {
+          useDropped(fileURLToPath(target));
+        } catch {
+          /* not a path */
+        }
+        return false;
+      }
+      return target.startsWith(url) || target === "about:blank";
+    },
     newWindowHandler: ({ url: target }) => {
       if (target && /^https?:\/\//.test(target)) {
         openInBrowser(target);
@@ -151,12 +164,12 @@ export const openWindow = async (url: string) => {
       inPage(`confirmQuit(${JSON.stringify(busyReason())})`);
     }
   });
-  // A folder dropped on the window's native parts (title bar, menu bar) becomes the queue folder; a file: the folder it's in
-  win.on("file-drop", ({ files }) => {
-    const dropped = files?.[0];
-    if (!dropped) {
-      return;
-    }
+  /**
+   * Makes `dropped` the queue directory (a file: the folder it's in), through the page so that it's saved like an edit.
+   * Drops on the page arrive through the navigation handler above, drops on the title bar and menu bar through the
+   * window's event. There's no folder picker on purpose: Windows records what a picker shows in the registry.
+   */
+  function useDropped(dropped: string) {
     if (busyReason()) {
       logger.warn(`Can't change the queue directory while ${busyReason()}.`);
       return;
@@ -166,6 +179,11 @@ export const openWindow = async (url: string) => {
       folder = path.dirname(dropped);
     }
     inPage(`setQueueFolder(${JSON.stringify(folder)})`);
+  }
+  win.on("file-drop", ({ files }) => {
+    if (files?.[0]) {
+      useDropped(files[0]);
+    }
   });
   const quit = () => {
     app.exit();
