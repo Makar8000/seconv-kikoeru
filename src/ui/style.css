@@ -154,6 +154,45 @@ h1 {
   gap: 12px;
 }
 
+/* ---- advanced section: a disclosure styled like a card heading ---- */
+.advanced {
+  margin-top: 12px;
+}
+/* This WebView2 (Edge 155) paints a closed details' content although it marks it content-visibility: hidden */
+.advanced:not([open]) > :not(summary) {
+  display: none;
+}
+.advanced > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none; /* the chevron below is the marker */
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+.advanced > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  transition: transform 0.12s;
+}
+.advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+.advanced > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.advanced > .fields {
+  margin-top: 10px;
+}
+
 input,
 select {
   width: 100%;
