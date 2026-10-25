@@ -190,7 +190,7 @@ const showEngine = () => {
   $("translateUrl").placeholder = EMPTY_URL[shownEngine] ?? "";
   const llamaCpp = shownEngine === "llamacpp";
   // Without a model, seconv sends none and the server uses its own default
-  $("translateModel").placeholder = llamaCpp ? "First available" : "Server's default";
+  $("translateModel").placeholder = llamaCpp ? "Format: Hugging Face user/repo:quant or .gguf link" : "Server's default";
   $("translateModel").title = llamaCpp ? "user/repo:quant, a Hugging Face link, or a .gguf in lib/llama.cpp/models" : "";
   // Only show the fields that apply to the engine (seconv rejects an API key or prompt for engines that don't take one)
   for (const el of document.querySelectorAll("[data-engines]")) {
