@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { chmod, mkdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
@@ -117,7 +118,8 @@ const fetchReleases = async (url: string, signal?: AbortSignal): Promise<Release
 
 /**
  * Downloads `assets` (all from release `tag`) and extracts them together into `dir`, replacing any previous copy.
- * The new version is fully extracted and checked for `binary` before the old one is touched.
+ * The new version is fully extracted and checked for `binary` before the old one is moved aside; when that fails (a file
+ * of it is in use), the old one stays as it was.
  */
 const installAssets = async (dir: string, binary: string, tag: string, assets: Asset[], signal?: AbortSignal) => {
   const parent = path.dirname(dir);
@@ -157,8 +159,21 @@ const installAssets = async (dir: string, binary: string, tag: string, assets: A
       await chmod(binaryPath, 0o755); // zips don't reliably carry the executable bit
     }
 
-    await rm(dir, { recursive: true, force: true });
-    await rename(staging, dir);
+    // Renames fail cleanly when a file is in use; a removal would stop halfway and leave neither version
+    const old = `${dir}.old`;
+    await rm(old, { recursive: true, force: true });
+    await rename(dir, old).catch((e) => {
+      if (e.code !== "ENOENT") {
+        throw e;
+      }
+    });
+    try {
+      await rename(staging, dir);
+    } catch (e) {
+      await rename(old, dir).catch(() => {});
+      throw e;
+    }
+    await rm(old, { recursive: true, force: true });
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
@@ -179,8 +194,38 @@ export const installSeconv = async (): Promise<string> => {
 };
 
 /**
+ * The CUDA line this machine can run, or undefined without an NVIDIA driver. CUDA 13 needs driver 580+ and a Turing or
+ * newer GPU (compute capability 7.5); with less, llama-server would download fine and then fail to start, so those get 12.
+ */
+const cudaLine = async (): Promise<"12" | "13" | undefined> => {
+  // nvcuda.dll and nvidia-smi come with the NVIDIA driver
+  const nvcuda = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "nvcuda.dll");
+  if (
+    !(await stat(nvcuda).then(
+      (s) => s.isFile(),
+      () => false,
+    ))
+  ) {
+    return undefined;
+  }
+  const report = await new Promise<string>((resolve) =>
+    execFile("nvidia-smi", ["--query-gpu=driver_version,compute_cap", "--format=csv,noheader"], { windowsHide: true, encoding: "utf8" }, (_e, out) =>
+      resolve(out ?? ""),
+    ),
+  );
+  // One "610.62, 8.6" line per GPU. A report that can't be read gets the newest line, as before.
+  const gpus = report
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.split(",").map(Number))
+    .filter(([driver, cap]) => driver > 0 && cap > 0);
+  return gpus.length && !gpus.every(([driver, cap]) => driver >= 580 && cap >= 7.5) ? "12" : "13";
+};
+
+/**
  * Downloads the newest llama.cpp build into lib/llama.cpp/bin/, replacing any previous one (models/ and config.ini
- * next to it are kept): the CUDA 13 build with its CUDA runtime when an NVIDIA driver is installed, else the CPU build.
+ * next to it are kept): the CUDA build (13, or 12 for older drivers and GPUs, see `cudaLine`) with its CUDA runtime when
+ * an NVIDIA driver is installed, else the CPU build.
  * Windows only: the builds for other systems rely on symlinks, which the extractor doesn't create.
  */
 export const installLlamaCpp = async (signal?: AbortSignal): Promise<string> => {
@@ -188,14 +233,9 @@ export const installLlamaCpp = async (signal?: AbortSignal): Promise<string> => 
     throw new Error(`llama.cpp can only be downloaded on Windows. Put a llama.cpp release in ${LLAMACPP_BIN} yourself.`);
   }
   const arch = ({ x64: "x64", arm64: "arm64" } as Record<string, string | undefined>)[process.arch];
-  // nvcuda.dll comes with the NVIDIA driver
-  const nvcuda = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "nvcuda.dll");
-  const cuda = await stat(nvcuda).then(
-    (s) => s.isFile(),
-    () => false,
-  );
-  const build = new RegExp(`^llama-b\\d+-bin-win-${cuda ? "cuda-(13\\.\\d+)" : "cpu"}-${arch}\\.zip$`);
-  logger.info(`Looking up the latest llama.cpp ${cuda ? "CUDA" : "CPU"} build...`);
+  const cuda = await cudaLine();
+  const build = new RegExp(`^llama-b\\d+-bin-win-${cuda ? `cuda-(${cuda}\\.\\d+)` : "cpu"}-${arch}\\.zip$`);
+  logger.info(`Looking up the latest llama.cpp ${cuda ? `CUDA ${cuda}` : "CPU"} build...`);
 
   for (const release of await fetchReleases(LLAMACPP_RELEASES_API, signal)) {
     const asset = release.assets.find((a) => build.test(a.name));
@@ -209,5 +249,5 @@ export const installLlamaCpp = async (signal?: AbortSignal): Promise<string> => 
       return release.tag_name;
     }
   }
-  throw new Error(`No llama.cpp ${cuda ? "CUDA" : "CPU"} build for Windows ${arch} was found in the latest releases.`);
+  throw new Error(`No llama.cpp ${cuda ? `CUDA ${cuda}` : "CPU"} build for Windows ${arch} was found in the latest releases.`);
 };

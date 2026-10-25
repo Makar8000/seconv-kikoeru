@@ -41,7 +41,7 @@ These are basic configurations sent to seconv. For more information on each opti
 
 ### Local llama.cpp
 When you click **Start translation** with the `llamacpp` engine, the app checks the server `url`:
-1) If a llama.cpp server is already running there, it's used as it is.
+1) If a llama.cpp server is already running there, it's used as it is. The console shows which model it serves and warns when that isn't the profile's model.
 2) Otherwise, the app downloads llama.cpp and the model if they're missing, starts `llama-server` on `127.0.0.1` at the URL's port, and stops it when the run ends, also when you click **Stop**.
 
 Everything it starts comes from `lib/llama.cpp/`:

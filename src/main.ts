@@ -1,4 +1,6 @@
 import "./appdir.ts";
+import { spawn } from "node:child_process";
+import { appendFileSync } from "node:fs";
 import path from "node:path";
 import {
   config,
@@ -21,6 +23,19 @@ import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.t
 import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
 import { restoreAllBackups } from "./translation/restorer.ts";
 import { type Progress, runTranslation } from "./translation/runner.ts";
+
+// The packaged app has no console, so a crash (before the window exists, say) would leave no trace without this
+const crash = (e: unknown) => {
+  console.error(e);
+  try {
+    appendFileSync("crash.log", `${new Date().toISOString()} ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);
+  } catch {
+    /* read-only folder: nothing more to be done */
+  }
+  process.exit(1);
+};
+process.on("uncaughtException", crash);
+process.on("unhandledRejection", crash);
 
 // The page's files, next to this one in src/ui; `bun run build` embeds them in the executable (--asset src/ui)
 const ASSETS: Record<string, { file: string; type: string }> = {
@@ -208,6 +223,8 @@ if (Bun.isStandaloneExecutable) {
   // The copy of the webview addon the bundler embeds can't be loaded; use the one shipped next to the executable
   process.env.NAPI_RS_NATIVE_LIBRARY_PATH = path.join(path.dirname(process.execPath), "webview.win32-x64-msvc.node");
 }
+// WebView2 reads this variable. No component downloads, no background traffic, and no GPU process.
+process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--disable-component-update --disable-background-networking --disable-gpu";
 const { Application } = await import("@webviewjs/webview");
 const app = new Application();
 // The embedded browser's data (cache, cookies) stays in the app folder
@@ -250,7 +267,28 @@ const win = app.createBrowserWindow({
 });
 // The window shows its own copy of the menu; clicks only reach custom-menu-click for items the application menu knows
 app.setMenu(menu);
-const view = win.createWebview({ url: server.url.href, webContext: context });
+
+/** Opens `url` in the system browser. */
+const openInBrowser = (url: string) => {
+  const [cmd, args]: [string, string[]] =
+    process.platform === "win32" ? ["rundll32", ["url.dll,FileProtocolHandler", url]] : [process.platform === "darwin" ? "open" : "xdg-open", [url]];
+  spawn(cmd, args, { windowsHide: true, detached: true, stdio: "ignore" }).unref();
+};
+
+const view = win.createWebview({
+  url: server.url.href,
+  webContext: context,
+  // The view shows the app's page only. A website link (target="_blank") goes to the system browser instead of the
+  // popup window WebView2 would otherwise open on the app's browser profile.
+  navigationHandler: (url) => url.startsWith(server.url.href) || url === "about:blank",
+  newWindowHandler: ({ url }) => {
+    if (url && /^https?:\/\//.test(url)) {
+      openInBrowser(url);
+    }
+    return false;
+  },
+});
+
 showTitle = () => win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
 showTitle();
 

@@ -24,8 +24,17 @@ const HF_FILE_URL = /^https:\/\/huggingface\.co\/([^/]+\/[^/]+)\/(?:blob|resolve
 /** True for the llamacpp engine (seconv also takes "llama.cpp" and "llama" for it). */
 export const usesLlamaCpp = () => ["llamacpp", "llama.cpp", "llama"].includes(config.translateEngine.toLowerCase());
 
-/** The server URL the llamacpp engine uses. */
-export const llamaCppUrl = () => engineConfig().url || DEFAULT_LLAMACPP_URL;
+/**
+ * The server URL the llamacpp engine uses. "localhost" becomes 127.0.0.1: that's where a server this app starts listens,
+ * and seconv would try ::1 first for every request. Any other host is left alone, such as a server elsewhere on the LAN.
+ */
+export const llamaCppUrl = () => {
+  const url = new URL(engineConfig().url || DEFAULT_LLAMACPP_URL);
+  if (url.hostname === "localhost") {
+    url.hostname = "127.0.0.1";
+  }
+  return url.href;
+};
 
 /** The llama-server this app started for the current run. */
 let server: ChildProcess | undefined;
@@ -49,6 +58,31 @@ const probe = async (origin: string): Promise<"llama.cpp" | "other" | "none"> =>
     // Refused: nothing listens there. A timeout: something does, but it doesn't answer like a web server.
     return e instanceof DOMException && e.name === "TimeoutError" ? "other" : "none";
   }
+};
+
+/** The model file the llama.cpp server at `origin` serves, from /props. */
+const servedModel = async (origin: string): Promise<string | undefined> => {
+  const props = await fetch(`${origin}/props`, { signal: AbortSignal.timeout(5000) })
+    .then((res) => res.json())
+    .catch(() => undefined);
+  return typeof props?.model_path === "string" ? props.model_path : undefined;
+};
+
+/**
+ * Whether `served` (a server's model file) is the `model` setting: a Hugging Face file link, user/repo[:quant] (served
+ * from the Hugging Face cache layout the downloader uses), or a file name.
+ */
+const isModel = (served: string, model: string) => {
+  const file = path.basename(served).toLowerCase();
+  const url = HF_FILE_URL.exec(model);
+  if (url) {
+    return file === path.basename(decodeURIComponent(url[2])).toLowerCase();
+  }
+  if (!model.includes("/")) {
+    return file === (/\.gguf$/i.test(model) ? model : `${model}.gguf`).toLowerCase();
+  }
+  const [repo, quant] = model.split(":");
+  return served.toLowerCase().includes(`models--${repo.replace("/", "--")}`.toLowerCase()) && (!quant || file.includes(quant.toLowerCase()));
 };
 
 /** Waits until the llama.cpp server at `origin` has loaded its model. */
@@ -191,13 +225,21 @@ export const openLlamaCpp = async (signal: AbortSignal) => {
   const url = new URL(llamaCppUrl());
   const found = await probe(url.origin);
   if (found === "llama.cpp") {
-    logger.info(`Using the llama.cpp server running at ${url.origin}, with its own model and sampling settings.`);
-    return waitUntilReady(url.origin, signal);
+    await waitUntilReady(url.origin, signal);
+    // A llama-server this app started lives on when the app is force-killed, maybe with another profile's model
+    const served = await servedModel(url.origin);
+    const model = engineConfig().model;
+    const fits = !served || !model || isModel(served, model);
+    const note = fits ? "" : ` That isn't the profile's model (${model}); stop that server to have one started with it.`;
+    logger[fits ? "info" : "warn"](
+      `Using the llama.cpp server running at ${url.origin} as it is, with ${served ? path.basename(served) : "its model"} and its own sampling settings.${note}`,
+    );
+    return;
   }
   if (found === "other") {
     throw new Error(`Something other than llama.cpp answers at ${url.origin}. Stop it, or use another port in the server URL.`);
   }
-  if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname)) {
+  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1") {
     throw new Error(`No llama.cpp server answers at ${url.origin}, and one can only be started at http://127.0.0.1:<port>.`);
   }
 

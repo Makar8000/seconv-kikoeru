@@ -15,5 +15,6 @@ queue/**
 !queue/**/.gitkeep
 .webview2/
 
-# seconv error log
+# seconv error log, app crash log
 error-log.txt
+crash.log
