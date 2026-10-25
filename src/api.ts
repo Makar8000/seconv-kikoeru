@@ -34,7 +34,10 @@ const ASSETS: Record<string, { file: string; type: string }> = {
 };
 const asset = (route: string) => {
   const { file, type } = ASSETS[route];
-  return new Response(Bun.file(path.join(import.meta.dir, "ui", file)), { headers: { "content-type": type } });
+  // frame-ancestors: no website can show the page in a frame, where its scripts would use this API
+  return new Response(Bun.file(path.join(import.meta.dir, "ui", file)), {
+    headers: { "content-type": type, "content-security-policy": "frame-ancestors 'none'" },
+  });
 };
 
 /**
@@ -152,14 +155,20 @@ const start = (scanOnly = false) => {
  * Runs a background operation (install / restore) as the only active one. `flag` drives the header pill;
  * failures are logged here so they show up in the console panel, then re-thrown for the API response.
  */
-const exclusive = async <T>(flag: "installing" | "restoring", what: string, task: () => Promise<T>) => {
+const exclusive = async <T>(flag: "installing" | "restoring", what: string, task: (signal: AbortSignal) => Promise<T>) => {
   if (busyReason()) {
     throw new Error(`Can't ${what} while ${busyReason()}.`);
   }
+  const controller = new AbortController();
+  abort = controller;
   state[flag] = true;
   try {
-    return await task();
+    return await task(controller.signal);
   } catch (e) {
+    if (controller.signal.aborted) {
+      logger.info(flag === "installing" ? "Download stopped." : "Restore stopped.");
+      return undefined;
+    }
     logger.error(e);
     throw e;
   } finally {
@@ -167,10 +176,12 @@ const exclusive = async <T>(flag: "installing" | "restoring", what: string, task
   }
 };
 
-export const install = () =>
-  exclusive("installing", "update seconv", async () => ({ tag: await installSeconv(), seconvFound: findSeconv() !== null }));
+export const install = async () => {
+  await exclusive("installing", "update seconv", installSeconv);
+  return { seconvFound: findSeconv() !== null };
+};
 
-export const installLlama = () => exclusive("installing", "update llama.cpp", () => installLlamaCpp());
+export const installLlama = () => exclusive("installing", "update llama.cpp", installLlamaCpp);
 
 const restore = () =>
   exclusive("restoring", "restore backups", async () => {
@@ -246,7 +257,10 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     return { app: APP };
   },
   "POST /api/install-seconv": install,
-  "POST /api/install-llamacpp": installLlama,
+  "POST /api/install-llamacpp": async () => {
+    await installLlama();
+    return state;
+  },
   "POST /api/restore-backups": async () => {
     await restore();
     return state;

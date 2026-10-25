@@ -115,7 +115,8 @@ const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
     url: str(input.url) ?? def?.url ?? "",
     apiKey: str(input.apiKey) ?? def?.apiKey ?? "",
     useCustomPrompt: bool(input.useCustomPrompt) ?? def?.useCustomPrompt ?? false,
-    prompt: str(input.prompt) ?? def?.prompt ?? "",
+    // One line: seconv sends a line break in the prompt as a literal <br />
+    prompt: str(input.prompt)?.replace(/\s*\r?\n\s*/g, " ") ?? def?.prompt ?? "",
     // Only engines with default sampling (llamacpp) get any; for the rest these stay undefined and aren't saved
     temperature: num(input.temperature) ?? def?.temperature,
     topP: num(input.topP) ?? def?.topP,

@@ -242,6 +242,18 @@ for (const f of inputs) {
   f.addEventListener(f.tagName === "SELECT" || f.type === "checkbox" ? "change" : "input", save);
 }
 $("useCustomPrompt").addEventListener("change", syncPromptToggle);
+// The prompt wraps but stays one line: seconv would send a line break as a literal <br />
+$("translatePrompt").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+  }
+});
+$("translatePrompt").addEventListener("input", () => {
+  const field = $("translatePrompt");
+  if (/[\r\n]/.test(field.value)) {
+    field.value = field.value.replace(/\s*[\r\n]+\s*/g, " "); // pasted text
+  }
+});
 $("showApiKey").addEventListener("click", () => {
   const field = $("translateApiKey");
   const shown = field.type === "text";
@@ -348,12 +360,12 @@ globalThis.setQueueFolder = (folder) => {
 };
 
 // ---- run / stop / progress ----
-let running = false; // as of the last poll; the one button stops the run while there is one, else starts one
+let stoppable = false; // as of the last poll: a run or a download is on, which the one button stops, else it starts a run
 let queueProblem = ""; // as of the last poll: why the queue directory can't be used, or ""
 const scanTitle = $("scan").title; // what Scan does; replaced by the reason while it's disabled
 $("run").addEventListener("click", async () => {
   try {
-    if (running) {
+    if (stoppable) {
       await api("POST", "/api/stop");
       return;
     }
@@ -495,10 +507,10 @@ const poll = async () => {
     }
     $("pill").textContent = pill;
     $("pill").classList.toggle("running", s.running);
-    running = s.running;
-    $("run").textContent = running ? "Stop" : "Start translation";
-    $("run").classList.toggle("danger", running);
-    $("run").classList.toggle("primary", !running);
+    stoppable = s.running || s.installing;
+    $("run").textContent = stoppable ? "Stop" : "Start translation";
+    $("run").classList.toggle("danger", stoppable);
+    $("run").classList.toggle("primary", !stoppable);
     // Why Start and Scan can't be clicked, as their tooltip
     let blocked = "";
     if (s.installing) {
@@ -512,9 +524,9 @@ const poll = async () => {
     } else if (noExtensions) {
       blocked = "At least one file extension is required";
     }
-    $("run").disabled = !running && blocked !== "";
+    $("run").disabled = !stoppable && blocked !== "";
     $("run").title = $("run").disabled ? blocked : "";
-    $("scan").disabled = running || blocked !== "";
+    $("scan").disabled = stoppable || blocked !== "";
     $("scan").title = blocked || scanTitle;
     // A run reads the settings as it goes, so they're locked until it's over (the server refuses a profile switch too)
     $("settings").disabled = busy;

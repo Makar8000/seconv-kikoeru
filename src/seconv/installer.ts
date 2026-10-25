@@ -48,9 +48,9 @@ export const parseLanguages = (source: string) =>
  * Saves the language list of seconv `tag`, read from the Subtitle Edit source at that tag, and loads it.
  * Not fatal: if it fails, the bundled list is used instead.
  */
-const saveLanguages = async (tag: string) => {
+const saveLanguages = async (tag: string, signal?: AbortSignal) => {
   try {
-    const res = await fetch(languagesSource(tag), { headers: { "user-agent": USER_AGENT } });
+    const res = await fetch(languagesSource(tag), { headers: { "user-agent": USER_AGENT }, signal });
     if (!res.ok) {
       throw new Error(`GitHub returned ${res.status} ${res.statusText}`);
     }
@@ -124,13 +124,13 @@ const installAssets = async (dir: string, binary: string, tag: string, assets: A
  * Downloads the newest seconv pre-release for this OS/architecture and installs it into `lib/seconv/`,
  * replacing any previous copy, along with its language list.
  */
-export const installSeconv = async (): Promise<string> => {
+export const installSeconv = async (signal?: AbortSignal): Promise<string> => {
   const prefix = assetPrefix();
   logger.info("Looking up the latest seconv pre-release...");
-  const { tag, asset } = pickAsset(await fetchReleases(RELEASES_API), prefix);
-  await installAssets(SECONV_LIB_DIR, SECONV_BINARY, tag, [asset]);
+  const { tag, asset } = pickAsset(await fetchReleases(RELEASES_API, signal), prefix);
+  await installAssets(SECONV_LIB_DIR, SECONV_BINARY, tag, [asset], signal);
   logger.info(`Installed seconv ${tag} to ${SECONV_LIB_DIR}`);
-  await saveLanguages(tag);
+  await saveLanguages(tag, signal);
   return tag;
 };
 

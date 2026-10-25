@@ -90,7 +90,6 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
 
   for (const { rjcode, files } of plan) {
     if (signal?.aborted) {
-      logger.warn("Stopped.");
       completed = false;
       break;
     }
