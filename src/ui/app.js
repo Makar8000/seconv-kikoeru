@@ -143,6 +143,17 @@ const syncPromptToggle = () => {
   $("translatePrompt").disabled = !$("useCustomPrompt").checked;
 };
 
+/**
+ * The server each engine uses when its URL field is empty. llamacpp: the app's own default (src/seconv/llamacpp.ts),
+ * where it starts llama-server if none runs. The others: seconv's built-in defaults.
+ */
+const EMPTY_URL = {
+  llamacpp: "http://127.0.0.1:8080/",
+  "openai-compatible": "http://localhost:8000/v1/chat/completions",
+  libretranslate: "http://localhost:5000/",
+  deepl: "https://api-free.deepl.com/",
+};
+
 const showEngine = () => {
   const e = engines[shownEngine] ?? { model: "", url: "", apiKey: "", prompt: "", additionalArgs: [] };
   for (const f of inputs.filter(isEngine)) {
@@ -152,13 +163,11 @@ const showEngine = () => {
     renderList(l, e[l.dataset.list]);
   }
   syncPromptToggle();
-  // llama.cpp: the app uses a llama.cpp server running at the URL, or starts one there; other engines fall back to
-  // seconv's default URL
+  // The URL an empty field means: the app's own for llama.cpp, seconv's for the rest
+  $("translateUrl").placeholder = EMPTY_URL[shownEngine] ?? "";
   const llamaCpp = shownEngine === "llamacpp";
-  $("translateUrl").placeholder = llamaCpp
-    ? "http://127.0.0.1:8080/ (a llama.cpp server is started here if none is running)"
-    : "Leave empty to use seconv's default";
-  $("translateModel").placeholder = llamaCpp ? "Hugging Face link, user/repo:quant, or a .gguf in lib/llama.cpp/models" : "First available";
+  // Without a model, seconv sends none and the server uses its own default
+  $("translateModel").placeholder = llamaCpp ? "Hugging Face link, user/repo:quant, or a .gguf in lib/llama.cpp/models" : "Server's default";
   // Only show the fields that apply to the engine (seconv rejects an API key or prompt for engines that don't take one)
   for (const el of document.querySelectorAll("[data-engines]")) {
     el.hidden = !el.dataset.engines.split(" ").includes(shownEngine);
