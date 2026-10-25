@@ -251,6 +251,15 @@ globalThis.confirmQuit = (reason) => {
     api("POST", "/api/quit").catch(() => {});
   }
 };
+// A folder dropped on the window's title bar: the host sees that drop (the page can't read paths) and sets it here
+globalThis.setQueueFolder = (folder) => {
+  $("rjPath").value = folder;
+  log("info", `Queue directory set to ${folder}`);
+  save();
+};
+// The page itself never takes a drop; the browser would otherwise try to open the dropped file
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => e.preventDefault());
 
 // ---- run / stop / progress ----
 let running = false; // as of the last poll; the one button stops the run while there is one, else starts one

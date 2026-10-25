@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { busyReason, hooks, install, installLlama, state } from "./api.ts";
 import { config, uniqueName } from "./config/index.ts";
+import { logger } from "./logger.ts";
+import { isFile } from "./utils/fs.ts";
 
 /** Opens `url` in the system browser. */
 const openInBrowser = (url: string) => {
@@ -148,6 +150,22 @@ export const openWindow = async (url: string) => {
       e.preventDefault();
       inPage(`confirmQuit(${JSON.stringify(busyReason())})`);
     }
+  });
+  // A folder dropped on the window's native parts (title bar, menu bar) becomes the queue folder; a file: the folder it's in
+  win.on("file-drop", ({ files }) => {
+    const dropped = files?.[0];
+    if (!dropped) {
+      return;
+    }
+    if (busyReason()) {
+      logger.warn(`Can't change the queue directory while ${busyReason()}.`);
+      return;
+    }
+    let folder = dropped;
+    if (isFile(dropped)) {
+      folder = path.dirname(dropped);
+    }
+    inPage(`setQueueFolder(${JSON.stringify(folder)})`);
   });
   const quit = () => {
     app.exit();

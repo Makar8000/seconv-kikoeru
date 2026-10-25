@@ -135,6 +135,10 @@ h1 {
   color: var(--muted);
   font-weight: 500;
 }
+.hint {
+  font-size: 11px;
+  color: #5d6575;
+}
 
 input,
 select {
