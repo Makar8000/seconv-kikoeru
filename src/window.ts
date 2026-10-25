@@ -1,12 +1,18 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { busyReason, hooks, install, installLlama } from "./api.ts";
+import { busyReason, hooks, install, installLlama, state } from "./api.ts";
 import { config, uniqueName } from "./config/index.ts";
 
 /** Opens `url` in the system browser. */
 const openInBrowser = (url: string) => {
-  const [cmd, args]: [string, string[]] =
-    process.platform === "win32" ? ["rundll32", ["url.dll,FileProtocolHandler", url]] : [process.platform === "darwin" ? "open" : "xdg-open", [url]];
+  let cmd = "xdg-open";
+  let args = [url];
+  if (process.platform === "win32") {
+    cmd = "rundll32";
+    args = ["url.dll,FileProtocolHandler", url];
+  } else if (process.platform === "darwin") {
+    cmd = "open";
+  }
   spawn(cmd, args, { windowsHide: true, detached: true, stdio: "ignore" }).unref();
 };
 
@@ -47,7 +53,7 @@ export const openWindow = async (url: string) => {
   }
   // WebView2 reads this variable. No component downloads, no background traffic, and no GPU process.
   process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--disable-component-update --disable-background-networking --disable-gpu";
-  const { Application } = await import("@webviewjs/webview");
+  const { Application, ProgressBarState } = await import("@webviewjs/webview");
   const app = new Application();
   // The embedded browser's data (cache, cookies) stays in the app folder
   const context = app.createWebContext({ dataDirectory: path.resolve(".webview2") });
@@ -75,10 +81,29 @@ export const openWindow = async (url: string) => {
     },
   });
 
-  /** The loaded profile's name in the window title */
-  const showTitle = () => win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
-  showTitle();
-  hooks.profileChanged = showTitle;
+  /** The title (the run's progress first, so the taskbar button shows it) and the taskbar progress bar follow the state */
+  const showState = () => {
+    const inspecting = state.running && state.inspected < state.toInspect;
+    let percent = 0;
+    if (state.total) {
+      percent = Math.round((state.done / state.total) * 100);
+    }
+    let phase = "";
+    let bar = ProgressBarState.None;
+    if (inspecting) {
+      phase = `Inspecting ${state.inspected}/${state.toInspect} - `;
+      bar = ProgressBarState.Indeterminate;
+    } else if (state.running) {
+      phase = `${percent}% - `;
+      bar = ProgressBarState.Normal;
+    } else if (state.total > 0 && state.done >= state.total) {
+      phase = "Done - ";
+    }
+    win.setTitle(`${phase}seconv-kikoeru - Profile: ${config.name}`);
+    win.setProgressBar({ state: bar, progress: percent });
+  };
+  showState();
+  hooks.stateChanged = showState;
   // A second launch of the app asks for this instead of opening its own window
   hooks.focus = () => {
     win.setMinimized(false);

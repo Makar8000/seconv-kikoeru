@@ -36,8 +36,8 @@ const asset = (route: string) => {
   return new Response(Bun.file(path.join(import.meta.dir, "ui", file)), { headers: { "content-type": type } });
 };
 
-type State = { running: boolean; installing: boolean; restoring: boolean } & Progress;
-const state: State = { running: false, installing: false, restoring: false, ...noProgress() };
+export type State = { running: boolean; installing: boolean; restoring: boolean } & Progress;
+export const state: State = { running: false, installing: false, restoring: false, ...noProgress() };
 
 /** Why the app is busy, or "" when it's idle. */
 export const busyReason = () =>
@@ -57,6 +57,7 @@ const start = () => {
   const controller = new AbortController();
   abort = controller;
   Object.assign(state, { running: true, ...noProgress() });
+  hooks.stateChanged();
   logger.info("Starting translation...");
   const translate = async () => {
     // llama.cpp: the server already running at its URL, or one started for this run (downloaded first if needed)
@@ -64,7 +65,10 @@ const start = () => {
       await openLlamaCpp(controller.signal);
     }
     try {
-      await runTranslation((p) => Object.assign(state, p), controller.signal);
+      await runTranslation((p) => {
+        Object.assign(state, p);
+        hooks.stateChanged();
+      }, controller.signal);
     } finally {
       stopLlamaServer();
     }
@@ -74,6 +78,7 @@ const start = () => {
     .catch((e) => (controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e)))
     .finally(() => {
       state.running = false;
+      hooks.stateChanged();
     });
 };
 
@@ -108,11 +113,11 @@ const restore = () =>
   });
 
 /**
- * Set by the window: `profileChanged` shows the loaded profile's name in the title, `quit` closes the window and exits,
- * `focus` brings the window to the front.
+ * Set by the window: `stateChanged` shows the loaded profile and the run's progress (title, taskbar), `quit` closes the
+ * window and exits, `focus` brings the window to the front.
  */
-export const hooks: { profileChanged: () => void; quit: () => void; focus: () => void } = {
-  profileChanged: () => {},
+export const hooks: { stateChanged: () => void; quit: () => void; focus: () => void } = {
+  stateChanged: () => {},
   quit: () => process.exit(0),
   focus: () => {},
 };
@@ -124,7 +129,7 @@ const changeProfile = (action: () => void) => {
     throw new Error(`Can't change the profile while ${busyReason()}.`);
   }
   action();
-  hooks.profileChanged();
+  hooks.stateChanged();
 };
 
 const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unknown> = {

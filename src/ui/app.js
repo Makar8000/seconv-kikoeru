@@ -283,15 +283,19 @@ const poll = async () => {
     });
     // A run first inspects every pending file (muted bar), then translates (accent bar)
     const inspecting = s.running && s.inspected < s.toInspect;
-    const pct = inspecting ? Math.round((s.inspected / s.toInspect) * 100) : s.total ? Math.round((s.done / s.total) * 100) : 0;
+    let pct = 0;
+    let status = "";
+    if (inspecting) {
+      pct = Math.round((s.inspected / s.toInspect) * 100);
+      status = `Inspecting ${s.inspected} / ${s.toInspect} files`;
+    } else if (s.total) {
+      pct = Math.round((s.done / s.total) * 100);
+      status = `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines`;
+    }
     $("bar").style.width = `${pct}%`;
     $("progress").classList.toggle("inspecting", inspecting);
     $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
-    $("status").textContent = inspecting
-      ? `Inspecting ${s.inspected} / ${s.toInspect} files`
-      : s.total
-        ? `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines`
-        : "";
+    $("status").textContent = status;
     setSeconvFound(s.seconvFound);
     // Another profile was loaded (the dropdown, or a menu action): show its settings
     if (s.load !== shownLoad) {

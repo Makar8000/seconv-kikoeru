@@ -9,7 +9,7 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 3) Adjust the settings in the window (see [Configuration](#configuration)).
 4) Ensure the server for your translation engine is running. For llama.cpp, this is taken care of for you (see [Local llama.cpp](#local-llamacpp))
 5) Place the files you want to translate in the queue folder (or set another folder in the app)
-6) Click **Start translation**. Progress (by line count) and log output are shown in the window.
+6) Click **Start translation**. Progress (by line count) and log output are shown.
 
 Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped.
 

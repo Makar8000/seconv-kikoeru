@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/main.ts",
-    "build": "bun build --compile --windows-hide-console --asset src/ui src/main.ts --outfile bin/seconv-kikoeru/seconv-kikoeru && cp node_modules/@webviewjs/webview-win32-x64-msvc/webview.win32-x64-msvc.node $SystemRoot/System32/vcruntime140.dll $SystemRoot/System32/vcruntime140_1.dll bin/seconv-kikoeru/",
+    "build": "bun build --compile --windows-hide-console --windows-icon=src/icon.ico --asset src/ui src/main.ts --outfile bin/seconv-kikoeru/seconv-kikoeru && cp node_modules/@webviewjs/webview-win32-x64-msvc/webview.win32-x64-msvc.node $SystemRoot/System32/vcruntime140.dll $SystemRoot/System32/vcruntime140_1.dll bin/seconv-kikoeru/",
     "check": "tsc",
     "lint": "biome check",
     "lint:fix": "biome check --write"
