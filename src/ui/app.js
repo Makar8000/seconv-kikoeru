@@ -323,8 +323,8 @@ globalThis.askProfile = async (action, suggested) => {
   }
 };
 globalThis.confirmRestore = async () => {
-  if (!$("rjPath").value.trim()) {
-    await ask({ title: "Restore backups", message: "The queue directory is required.", cancel: false });
+  if (queueProblem) {
+    await ask({ title: "Restore backups", message: `${queueProblem}.`, cancel: false });
     return;
   }
   const message = `Restore all backups under "${$("rjPath").value}"? Translated files go back to their originals.`;
@@ -348,6 +348,7 @@ globalThis.setQueueFolder = (folder) => {
 
 // ---- run / stop / progress ----
 let running = false; // as of the last poll; the one button stops the run while there is one, else starts one
+let queueProblem = ""; // as of the last poll: why the queue directory can't be used, or ""
 const scanTitle = $("scan").title; // what Scan does; replaced by the reason while it's disabled
 $("run").addEventListener("click", async () => {
   try {
@@ -447,15 +448,18 @@ const poll = async () => {
     setSeconvFound(s.seconvFound);
     // The queue fields are required. The saved directory is checked on every poll, so creating or renaming it outside
     // the app shows at once
-    let queueError = "";
+    let queueHint = "";
+    queueProblem = "";
     if (!$("rjPath").value.trim()) {
-      queueError = "Required";
+      queueHint = "Required";
+      queueProblem = "The queue directory is required";
     } else if (!s.queueFound) {
-      queueError = "Folder not found";
+      queueHint = "Folder not found";
+      queueProblem = "The queue directory was not found";
     }
-    $("rjPathError").textContent = queueError;
-    $("rjPathError").hidden = !queueError;
-    $("rjPath").classList.toggle("error", queueError !== "");
+    $("rjPathError").textContent = queueHint;
+    $("rjPathError").hidden = !queueHint;
+    $("rjPath").classList.toggle("error", queueHint !== "");
     const noExtensions = chips(extensionsList).length === 0;
     $("extensionsError").hidden = !noExtensions;
     extensionsList.classList.toggle("error", noExtensions);
@@ -502,10 +506,8 @@ const poll = async () => {
       blocked = "Backups are being restored";
     } else if (seconvMissing) {
       blocked = "seconv was not found";
-    } else if (queueError === "Required") {
-      blocked = "The queue directory is required";
-    } else if (queueError) {
-      blocked = "The queue directory was not found";
+    } else if (queueProblem) {
+      blocked = queueProblem;
     } else if (noExtensions) {
       blocked = "At least one file extension is required";
     }
