@@ -1,11 +1,11 @@
-import { execFile } from "node:child_process";
-import { createWriteStream } from "node:fs";
-import { chmod, mkdir, rename, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
-import { Writable } from "node:stream";
-import { BlobReader, ZipReader } from "@zip.js/zip.js";
 import { reloadLanguages } from "../config/index.ts";
 import { logger } from "../logger.ts";
+import { extractArchive } from "../utils/archive.ts";
+import { isFile } from "../utils/fs.ts";
+import { type Asset, downloadAsset, fetchReleases, type Release, USER_AGENT } from "../utils/github.ts";
+import { run } from "../utils/process.ts";
 import { LLAMACPP_BIN, LLAMACPP_MODELS, LLAMACPP_SERVER, SECONV_BINARY, SECONV_LANGUAGES, SECONV_LIB_DIR } from "./locate.ts";
 
 const RELEASES_API = "https://api.github.com/repos/SubtitleEdit/subtitleedit/releases?per_page=30";
@@ -14,9 +14,6 @@ const LLAMACPP_RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/r
 /** The Subtitle Edit source file that defines the LLM engines' language list, at release `tag`. */
 const languagesSource = (tag: string) =>
   `https://raw.githubusercontent.com/SubtitleEdit/subtitleedit/${tag}/src/libuilogic/AutoTranslate/ChatGptTranslate.cs`;
-
-type Release = { tag_name: string; prerelease: boolean; draft: boolean; assets: { name: string; browser_download_url: string; size: number }[] };
-type Asset = Release["assets"][number];
 
 const WINDOWS = process.platform === "win32";
 
@@ -43,43 +40,6 @@ export const pickAsset = (releases: Release[], prefix: string) => {
   return { tag: release.tag_name, asset };
 };
 
-/** Resolves `name` inside `dir`, refusing anything that would escape it (zip-slip). */
-const safeJoin = (dir: string, name: string): string => {
-  const target = path.resolve(dir, name);
-  if (target !== dir && !target.startsWith(dir + path.sep)) {
-    throw new Error(`Refusing to extract "${name}" outside the target folder.`);
-  }
-  return target;
-};
-
-const extractZip = async (archive: string, dest: string) => {
-  // Read lazily and streamed to disk: llama.cpp's CUDA runtime holds a ~470 MB file. zip.js closes the file when done.
-  const reader = new ZipReader(new BlobReader(Bun.file(archive)));
-  try {
-    for (const entry of await reader.getEntries()) {
-      const target = safeJoin(dest, entry.filename);
-      if (entry.directory) {
-        await mkdir(target, { recursive: true });
-      } else if (entry.getData) {
-        await mkdir(path.dirname(target), { recursive: true });
-        await entry.getData(Writable.toWeb(createWriteStream(target)));
-      }
-    }
-  } finally {
-    await reader.close();
-  }
-};
-
-/** Extracts a downloaded `.zip` / `.tar.gz` archive into `dest`. */
-export const extractArchive = async (archive: string, dest: string) => {
-  if (archive.endsWith(".zip")) {
-    await extractZip(archive, dest);
-  } else {
-    // Bun.Archive refuses absolute entry paths, strips `..` and skips symlinks on Windows
-    await new Bun.Archive(await Bun.file(archive).bytes()).extract(dest);
-  }
-};
-
 /** Pulls the `MakePair("English", "en")` entries out of Subtitle Edit's `ChatGptTranslate.cs`. */
 export const parseLanguages = (source: string) =>
   [...source.matchAll(/MakePair\("([^"]+)",\s*"([^"]+)"\)/g)].map(([, name, code]) => ({ name, code }));
@@ -90,7 +50,7 @@ export const parseLanguages = (source: string) =>
  */
 const saveLanguages = async (tag: string) => {
   try {
-    const res = await fetch(languagesSource(tag), { headers: { "user-agent": "seconv-kikoeru" } });
+    const res = await fetch(languagesSource(tag), { headers: { "user-agent": USER_AGENT } });
     if (!res.ok) {
       throw new Error(`GitHub returned ${res.status} ${res.statusText}`);
     }
@@ -105,15 +65,6 @@ const saveLanguages = async (tag: string) => {
     logger.warn(`Couldn't get the language list of seconv ${tag}, using the built-in one. ${e}`);
   }
   reloadLanguages();
-};
-
-/** Lists a GitHub repository's releases, newest first. */
-const fetchReleases = async (url: string, signal?: AbortSignal): Promise<Release[]> => {
-  const res = await fetch(url, { headers: { accept: "application/vnd.github+json", "user-agent": "seconv-kikoeru" }, signal });
-  if (!res.ok) {
-    throw new Error(`GitHub returned ${res.status} ${res.statusText} while listing releases.`);
-  }
-  return res.json();
 };
 
 /**
@@ -133,12 +84,7 @@ const installAssets = async (dir: string, binary: string, tag: string, assets: A
       const archive = path.join(parent, asset.name);
       try {
         logger.info(`Downloading ${asset.name} (${tag}, ${(asset.size / 1024 / 1024).toFixed(1)} MB)...`);
-        const download = await fetch(asset.browser_download_url, { headers: { "user-agent": "seconv-kikoeru" }, signal });
-        if (!download.ok || !download.body) {
-          throw new Error(`Download failed: ${download.status} ${download.statusText}`);
-        }
-        await Bun.write(archive, download);
-
+        await downloadAsset(asset, archive, signal);
         logger.info("Extracting...");
         await extractArchive(archive, staging);
       } finally {
@@ -147,12 +93,7 @@ const installAssets = async (dir: string, binary: string, tag: string, assets: A
     }
 
     const binaryPath = path.join(staging, binary);
-    if (
-      !(await stat(binaryPath).then(
-        (s) => s.isFile(),
-        () => false,
-      ))
-    ) {
+    if (!isFile(binaryPath)) {
       throw new Error(`The downloaded archive does not contain ${binary}.`);
     }
     if (!WINDOWS) {
@@ -199,20 +140,12 @@ export const installSeconv = async (): Promise<string> => {
  */
 const cudaLine = async (): Promise<"12" | "13" | undefined> => {
   // nvcuda.dll and nvidia-smi come with the NVIDIA driver
-  const nvcuda = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "nvcuda.dll");
-  if (
-    !(await stat(nvcuda).then(
-      (s) => s.isFile(),
-      () => false,
-    ))
-  ) {
+  if (!isFile(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "nvcuda.dll"))) {
     return undefined;
   }
-  const report = await new Promise<string>((resolve) =>
-    execFile("nvidia-smi", ["--query-gpu=driver_version,compute_cap", "--format=csv,noheader"], { windowsHide: true, encoding: "utf8" }, (_e, out) =>
-      resolve(out ?? ""),
-    ),
-  );
+  const { stdout: report } = await run("nvidia-smi", ["--query-gpu=driver_version,compute_cap", "--format=csv,noheader"]).catch(() => ({
+    stdout: "",
+  }));
   // One "610.62, 8.6" line per GPU. A report that can't be read gets the newest line, as before.
   const gpus = report
     .trim()

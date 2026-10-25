@@ -1,7 +1,8 @@
-import { execFile } from "node:child_process";
 import path from "node:path";
 import { config, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
+import { heartbeat } from "../utils/heartbeat.ts";
+import { run } from "../utils/process.ts";
 import { llamaCppUrl, usesLlamaCpp } from "./llamacpp.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
 
@@ -26,28 +27,6 @@ type SeConvJsonOutput = {
   errors: string[];
 };
 
-const HEARTBEAT_INTERVAL = 10_000;
-
-/**
- * Runs `exe` and collects its output. `windowsHide` keeps Windows from opening a console window for seconv (a console
- * program) when it's started from this windowless desktop app. stdin is closed and stderr is captured, as the packaged
- * app has no console to inherit.
- */
-const run = (exe: string, args: string[], signal?: AbortSignal) =>
-  new Promise<{ code: number | null; signal: string | null; stdout: string; stderr: string }>((resolve, reject) => {
-    if (signal?.aborted) {
-      return reject(new Error("Translation stopped"));
-    }
-    const child = execFile(exe, args, { windowsHide: true, signal, maxBuffer: Infinity, encoding: "utf8" }, (error, stdout, stderr) => {
-      // A non-zero exit still resolves: seconv reports per-file failures in its JSON output
-      if (error && typeof error.code !== "number") {
-        return reject(new Error(signal?.aborted ? "Translation stopped" : `Could not run seconv at "${exe}".\n${error}`));
-      }
-      resolve({ code: child.exitCode, signal: child.signalCode, stdout, stderr });
-    });
-    child.stdin?.end();
-  });
-
 const parseJson = (text: string) => {
   try {
     return JSON.parse(text);
@@ -69,7 +48,7 @@ export const inspect = async (filePath: string, signal?: AbortSignal): Promise<S
   if (!exe) {
     throw new Error(SECONV_NOT_FOUND);
   }
-  const { stdout, stderr } = await run(exe, ["info", path.resolve(filePath), "--json"], signal);
+  const { stdout, stderr } = await run(exe, ["info", path.resolve(filePath), "--json"], { signal });
   const info = parseJson(stdout);
   if (!info?.format) {
     // On a failure seconv prints {"error": "..."} on stderr instead
@@ -137,18 +116,13 @@ export const translateWithSeConv = async (filePath: string, format: string, abor
 
   logger.info(`Translating ${path.relative(config.rjPath, absoluteFilePath)} (${format})...`);
   const startedAt = Date.now();
-
-  // Emit a heartbeat while translation is in progress
-  const heartbeat = setInterval(() => {
-    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
-    logger.info(`Still translating... (${elapsedSeconds}s elapsed)`);
-  }, HEARTBEAT_INTERVAL);
-
+  const stopHeartbeat = heartbeat("Still translating...");
+  // A non-zero exit still resolves: seconv reports per-file failures in its JSON output
   let code: number | null, signal: string | null, stdout: string, stderr: string;
   try {
-    ({ code, signal, stdout, stderr } = await run(exe, args, abortSignal));
+    ({ code, signal, stdout, stderr } = await run(exe, args, { signal: abortSignal }));
   } finally {
-    clearInterval(heartbeat);
+    stopHeartbeat();
   }
 
   const stderrText = stderr.trim();

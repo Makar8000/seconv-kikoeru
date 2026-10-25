@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { isFile } from "../utils/fs.ts";
 
 export const SECONV_RELEASES_URL = "https://github.com/SubtitleEdit/subtitleedit/releases";
 export const SECONV_NOT_FOUND = `seconv was not found. Use the download button, or get it from ${SECONV_RELEASES_URL} and put it in lib/seconv/.`;
@@ -32,14 +33,6 @@ cors-origins = localhost
 ; never download anything
 offline = true
 `;
-
-const isFile = (p: string) => {
-  try {
-    return statSync(p).isFile();
-  } catch {
-    return false;
-  }
-};
 
 /** Finds the `seconv` executable in lib/seconv/, or null if there isn't one. */
 export const findSeconv = (): string | null => {

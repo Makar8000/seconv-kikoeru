@@ -2,6 +2,8 @@ import { type ChildProcess, spawn } from "node:child_process";
 import path from "node:path";
 import { config, type EngineConfig, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
+import { heartbeat } from "../utils/heartbeat.ts";
+import { run } from "../utils/process.ts";
 import { installLlamaCpp } from "./installer.ts";
 import {
   findLlamaServer,
@@ -16,7 +18,6 @@ import {
 
 /** The llamacpp engine's server when its URL setting is empty. */
 export const DEFAULT_LLAMACPP_URL = "http://127.0.0.1:8080/";
-const HEARTBEAT_INTERVAL = 10_000;
 const READY_TIMEOUT = 5 * 60_000;
 /** A Hugging Face file page or download link: https://huggingface.co/<user>/<repo>/blob/main/<file>.gguf */
 const HF_FILE_URL = /^https:\/\/huggingface\.co\/([^/]+\/[^/]+)\/(?:blob|resolve)\/[^/]+\/([^?#]+)/;
@@ -100,30 +101,20 @@ const waitUntilReady = async (origin: string, signal: AbortSignal) => {
 };
 
 /** Runs llama.cpp's own model downloader and resolves with the downloaded file (the last line it prints). */
-const llamaDownload = (args: string[], signal: AbortSignal) =>
-  new Promise<string>((resolve, reject) => {
-    // Into lib/llama.cpp/models, in Hugging Face's cache layout. Its config home is bin/, which holds no config.ini:
-    // ours turns on offline mode.
-    const env = { ...llamaCppEnv(process.env, LLAMACPP_BIN), LLAMA_CACHE: LLAMACPP_MODELS };
-    const child = spawn(path.join(LLAMACPP_BIN, LLAMACPP_TOOL), ["download", ...args, "--no-mmproj"], {
-      windowsHide: true,
-      cwd: LLAMACPP_BIN,
-      env,
-      signal,
-    });
-    let out = "";
-    let err = "";
-    child.stdout?.on("data", (data) => {
-      out += data;
-    });
-    child.stderr?.on("data", (data) => {
-      err = (err + data).slice(-2000);
-    });
-    child.on("error", reject);
-    child.on("close", (code) =>
-      code === 0 ? resolve(out.trim().split(/\r?\n/).pop() ?? "") : reject(new Error(`llama.cpp couldn't get the model. ${err.trim()}`)),
-    );
+const llamaDownload = async (args: string[], signal: AbortSignal) => {
+  // Into lib/llama.cpp/models, in Hugging Face's cache layout. Its config home is bin/, which holds no config.ini:
+  // ours turns on offline mode.
+  const env = { ...llamaCppEnv(process.env, LLAMACPP_BIN), LLAMA_CACHE: LLAMACPP_MODELS };
+  const { code, stdout, stderr } = await run(path.join(LLAMACPP_BIN, LLAMACPP_TOOL), ["download", ...args, "--no-mmproj"], {
+    signal,
+    cwd: LLAMACPP_BIN,
+    env,
   });
+  if (code !== 0) {
+    throw new Error(`llama.cpp couldn't get the model. ${stderr.trim().slice(-2000)}`);
+  }
+  return stdout.trim().split(/\r?\n/).pop() ?? "";
+};
 
 /**
  * The .gguf to serve for the model setting: a Hugging Face file link or repository (user/repo or user/repo:quant),
@@ -152,14 +143,11 @@ const resolveModel = async (model: string, signal: AbortSignal) => {
     throw new Error(`The app's folder path is too long for llama.cpp's downloader. Move the app to a shorter path, like C:\\seconv-kikoeru.`);
   }
   logger.info(`Downloading ${model} into ${LLAMACPP_MODELS}, this may take a while...`);
-  const startedAt = Date.now();
-  const heartbeat = setInterval(() => {
-    logger.info(`Still downloading the model... (${Math.round((Date.now() - startedAt) / 1000)}s elapsed)`);
-  }, HEARTBEAT_INTERVAL);
+  const stopHeartbeat = heartbeat("Still downloading the model...");
   try {
     return await llamaDownload(args, signal);
   } finally {
-    clearInterval(heartbeat);
+    stopHeartbeat();
   }
 };
 
