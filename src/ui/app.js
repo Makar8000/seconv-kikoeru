@@ -264,26 +264,72 @@ const profileAction = async (body) => {
   }
 };
 $("profile").addEventListener("change", () => profileAction({ action: "switch", file: $("profile").value }));
-globalThis.askProfile = (action, suggested) => {
+// ---- the page's own dialog (the browser's prompt() and confirm() would be titled with the API's address) ----
+/**
+ * Asks a question in the dialog. With `value`, a text field holds it, pre-selected, and the answer is the text typed
+ * (Enter confirms); without, the answer is true. Cancel, Escape or a dialog that's already open give null.
+ */
+const ask = ({ title, message, value, ok = "OK", danger = false }) =>
+  new Promise((resolve) => {
+    const dialog = $("dialog");
+    if (dialog.open) {
+      resolve(null);
+      return;
+    }
+    const input = $("dialogInput");
+    $("dialogTitle").textContent = title;
+    $("dialogMessage").textContent = message;
+    input.hidden = value === undefined;
+    input.value = value ?? "";
+    $("dialogOk").textContent = ok;
+    $("dialogOk").classList.toggle("danger", danger);
+    $("dialogOk").classList.toggle("primary", !danger);
+    dialog.addEventListener(
+      "close",
+      () => {
+        if (dialog.returnValue !== "ok") {
+          resolve(null);
+        } else if (value === undefined) {
+          resolve(true);
+        } else {
+          resolve(input.value);
+        }
+      },
+      { once: true },
+    );
+    dialog.returnValue = ""; // close() without a value keeps the last one
+    dialog.showModal();
+    if (value !== undefined) {
+      input.select();
+    }
+  });
+$("dialogCancel").addEventListener("click", () => $("dialog").close());
+
+const PROFILE_DIALOGS = { new: ["New profile", "Create"], duplicate: ["Duplicate profile", "Duplicate"], rename: ["Rename profile", "Rename"] };
+globalThis.askProfile = async (action, suggested) => {
   if (action === "delete") {
-    if (confirm(`Delete the profile "${suggested}"? This can't be undone.`)) {
+    const message = `Delete the profile "${suggested}"? This can't be undone.`;
+    if (await ask({ title: "Delete profile", message, ok: "Delete", danger: true })) {
       profileAction({ action });
     }
     return;
   }
-  const name = prompt("Profile name:", suggested);
+  const [title, ok] = PROFILE_DIALOGS[action];
+  const name = await ask({ title, message: "Profile name", value: suggested, ok });
   if (name?.trim()) {
     profileAction({ action, name: name.trim() });
   }
 };
-globalThis.confirmRestore = () => {
-  if (confirm(`Restore all backups under "${$("rjPath").value}"? Translated files go back to their originals.`)) {
+globalThis.confirmRestore = async () => {
+  const message = `Restore all backups under "${$("rjPath").value}"? Translated files go back to their originals.`;
+  if (await ask({ title: "Restore backups", message, ok: "Restore", danger: true })) {
     api("POST", "/api/restore-backups").catch((e) => log("error", e.message));
   }
 };
 // The window was closed while busy (`reason`, e.g. "a translation is running"); the server exits on the yes
-globalThis.confirmQuit = (reason) => {
-  if (confirm(`${reason[0].toUpperCase()}${reason.slice(1)}. Stop it and quit?`)) {
+globalThis.confirmQuit = async (reason) => {
+  const message = `${reason[0].toUpperCase()}${reason.slice(1)}. Quitting stops it.`;
+  if (await ask({ title: "Quit?", message, ok: "Stop and quit", danger: true })) {
     api("POST", "/api/quit").catch(() => {});
   }
 };

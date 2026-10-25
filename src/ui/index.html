@@ -133,6 +133,19 @@
       <div id="console" role="log"></div>
     </section>
 
+    <!-- The page's own dialog for the menu's questions; the browser's prompt() and confirm() title theirs with the API's address -->
+    <dialog id="dialog" aria-labelledby="dialogTitle">
+      <form method="dialog">
+        <h2 class="dialog-title" id="dialogTitle">Question</h2>
+        <p id="dialogMessage"></p>
+        <input id="dialogInput" autocomplete="off" spellcheck="false">
+        <div class="dialog-buttons">
+          <button type="button" id="dialogCancel">Cancel</button>
+          <button type="submit" id="dialogOk" class="primary" value="ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="/app.js"></script>
   </body>
 </html>
