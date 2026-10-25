@@ -139,6 +139,20 @@ h1 {
   font-size: 11px;
   color: #5d6575;
 }
+/* Hints sit a little in from the field's edge; a problem shown on the right ends where the field's text ends (10px padding) */
+.field > .hint,
+.hint-row {
+  padding-inline: 4px 10px;
+}
+.hint.error {
+  color: var(--danger);
+}
+/* A hint on the left, a problem with the field on the right */
+.hint-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
 
 input,
 select {
@@ -163,6 +177,10 @@ select:focus,
 button:focus-visible {
   outline: none;
   border-color: var(--accent);
+}
+/* A field whose value is wrong (the queue folder doesn't exist); the hint under it says what. Stays red while focused. */
+input.error {
+  border-color: var(--danger);
 }
 input:disabled,
 select:disabled {

@@ -91,7 +91,10 @@
           <div class="field half">
             <label for="rjPath">Queue directory</label>
             <input id="rjPath" data-key="rjPath" spellcheck="false">
-            <small class="hint">Or drop a folder anywhere on the window</small>
+            <div class="hint-row">
+              <small class="hint">Or drop a folder anywhere on the window</small>
+              <small class="hint error" id="rjPathError" hidden>Folder not found</small>
+            </div>
           </div>
           <div class="field half">
             <label for="subtitleExtensions-input">File extensions</label>

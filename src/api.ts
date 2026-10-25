@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import path from "node:path";
 import {
   config,
@@ -47,6 +48,15 @@ export const state: State = { running: false, installing: false, restoring: fals
 export const busyReason = () =>
   state.running ? "a translation is running" : state.installing ? "a download is running" : state.restoring ? "backups are being restored" : "";
 let abort: AbortController | undefined;
+
+/** Whether the queue directory exists; the page says so under the field and keeps Start disabled until it does. */
+const queueFound = () => {
+  try {
+    return statSync(path.resolve(config.rjPath)).isDirectory();
+  } catch {
+    return false;
+  }
+};
 
 // no-store: the WebView would otherwise keep these (log lines, settings with API keys) in its disk cache
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -169,6 +179,7 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     ...state,
     load: profileLoads(),
     seconvFound: findSeconv() !== null,
+    queueFound: queueFound(),
     logs: getLogsSince(Number(url.searchParams.get("since")) || 0),
   }),
   "POST /api/start": () => {

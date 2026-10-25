@@ -335,12 +335,16 @@ const poll = async () => {
       }
       status = parts.join(" · ");
     }
+    $("progress").hidden = !s.startedAt; // no bar until there has been a run; afterwards it stays as the summary
     $("bar").style.width = `${pct}%`;
     $("progress").classList.toggle("inspecting", inspecting);
     $("progress").classList.toggle("done", done);
     $("phase").textContent = phase;
     $("status").textContent = status;
     setSeconvFound(s.seconvFound);
+    // The saved queue directory is checked on every poll, so creating or renaming it outside the app shows at once
+    $("rjPathError").hidden = s.queueFound;
+    $("rjPath").classList.toggle("error", !s.queueFound);
     // Another profile was loaded (the dropdown, or a menu action): show its settings
     if (s.load !== shownLoad) {
       api("GET", "/api/config")
@@ -376,7 +380,7 @@ const poll = async () => {
     $("run").textContent = running ? "Stop" : "Start translation";
     $("run").classList.toggle("danger", running);
     $("run").classList.toggle("primary", !running);
-    $("run").disabled = !running && (busy || seconvMissing);
+    $("run").disabled = !running && (busy || seconvMissing || !s.queueFound);
     // A run reads the settings as it goes, so they're locked until it's over (the server refuses a profile switch too)
     $("settings").disabled = busy;
     $("profile").disabled = busy;
