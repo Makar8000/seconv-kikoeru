@@ -270,7 +270,7 @@ $("profile").addEventListener("change", () => profileAction({ action: "switch", 
  * Asks a question in the dialog. With `value`, a text field holds it, pre-selected, and the answer is the text typed
  * (Enter confirms); without, the answer is true. Cancel, Escape or a dialog that's already open give null.
  */
-const ask = ({ title, message, value, ok = "OK", danger = false }) =>
+const ask = ({ title, message, value, ok = "OK", danger = false, cancel = true }) =>
   new Promise((resolve) => {
     const dialog = $("dialog");
     if (dialog.open) {
@@ -282,6 +282,7 @@ const ask = ({ title, message, value, ok = "OK", danger = false }) =>
     $("dialogMessage").textContent = message;
     input.hidden = value === undefined;
     input.value = value ?? "";
+    $("dialogCancel").hidden = !cancel; // an error has nothing to cancel
     $("dialogOk").textContent = ok;
     $("dialogOk").classList.toggle("danger", danger);
     $("dialogOk").classList.toggle("primary", !danger);
@@ -322,6 +323,10 @@ globalThis.askProfile = async (action, suggested) => {
   }
 };
 globalThis.confirmRestore = async () => {
+  if (!$("rjPath").value.trim()) {
+    await ask({ title: "Restore backups", message: "The queue directory is required.", cancel: false });
+    return;
+  }
   const message = `Restore all backups under "${$("rjPath").value}"? Translated files go back to their originals.`;
   if (await ask({ title: "Restore backups", message, ok: "Restore", danger: true })) {
     api("POST", "/api/restore-backups").catch((e) => log("error", e.message));
