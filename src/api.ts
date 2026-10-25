@@ -39,10 +39,28 @@ const asset = (route: string) => {
 
 /**
  * `phase`: what a run does before its files' progress says it (the llama.cpp set-up, the scan of the queue folder).
+ * `scanOnly`: the last run was a scan (its counts are what a translation would do), from the Scan button.
  * `startedAt` / `finishedAt`: the last run's times (ms since the epoch; 0 when none), for the elapsed time in the page.
  */
-export type State = { running: boolean; installing: boolean; restoring: boolean; phase: string; startedAt: number; finishedAt: number } & Progress;
-export const state: State = { running: false, installing: false, restoring: false, phase: "", startedAt: 0, finishedAt: 0, ...noProgress() };
+export type State = {
+  running: boolean;
+  installing: boolean;
+  restoring: boolean;
+  phase: string;
+  scanOnly: boolean;
+  startedAt: number;
+  finishedAt: number;
+} & Progress;
+export const state: State = {
+  running: false,
+  installing: false,
+  restoring: false,
+  phase: "",
+  scanOnly: false,
+  startedAt: 0,
+  finishedAt: 0,
+  ...noProgress(),
+};
 
 /** Why the app is busy, or "" when it's idle. */
 export const busyReason = () =>
@@ -61,7 +79,8 @@ const queueFound = () => {
 // no-store: the WebView would otherwise keep these (log lines, settings with API keys) in its disk cache
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
-const start = () => {
+/** Starts a translation run, or with `scanOnly` just the inspection of the queue (no llama-server for that). */
+const start = (scanOnly = false) => {
   if (busyReason()) {
     return;
   }
@@ -70,32 +89,43 @@ const start = () => {
   }
   const controller = new AbortController();
   abort = controller;
-  Object.assign(state, { running: true, phase: "Starting", startedAt: Date.now(), finishedAt: 0, ...noProgress() });
+  Object.assign(state, { running: true, phase: "Starting", scanOnly, startedAt: Date.now(), finishedAt: 0, ...noProgress() });
   hooks.stateChanged();
-  logger.info("Starting translation...");
+  const what = scanOnly ? "Scan" : "Translation";
+  logger.info(scanOnly ? "Scanning the queue..." : "Starting translation...");
   const setPhase = (phase: string) => {
     state.phase = phase;
     hooks.stateChanged();
   };
   const translate = async () => {
     // llama.cpp: the server already running at its URL, or one started for this run (downloaded first if needed)
-    if (usesLlamaCpp()) {
+    if (usesLlamaCpp() && !scanOnly) {
       await openLlamaCpp(controller.signal, setPhase);
     }
     setPhase("Scanning");
     try {
-      await runTranslation((p) => {
-        Object.assign(state, p);
-        state.phase = ""; // from the first progress on, the counts say what's happening
-        hooks.stateChanged();
-      }, controller.signal);
+      await runTranslation(
+        (p) => {
+          Object.assign(state, p);
+          state.phase = ""; // from the first progress on, the counts say what's happening
+          hooks.stateChanged();
+        },
+        controller.signal,
+        scanOnly,
+      );
     } finally {
       stopLlamaServer();
     }
   };
   translate()
-    .then(() => logger.info(controller.signal.aborted ? "Translation stopped." : "Finished processing all files."))
-    .catch((e) => (controller.signal.aborted ? logger.info("Translation stopped.") : logger.error(e)))
+    .then(() => {
+      if (controller.signal.aborted) {
+        logger.info(`${what} stopped.`);
+      } else if (!scanOnly) {
+        logger.info("Finished processing all files."); // a scan logs its own summary
+      }
+    })
+    .catch((e) => (controller.signal.aborted ? logger.info(`${what} stopped.`) : logger.error(e)))
     .finally(() => {
       state.running = false;
       state.phase = "";
@@ -184,6 +214,10 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
   }),
   "POST /api/start": () => {
     start();
+    return state;
+  },
+  "POST /api/scan": () => {
+    start(true);
     return state;
   },
   // The page has confirmed that the running translation, download or restore may be killed

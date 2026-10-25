@@ -21,8 +21,12 @@ export type Progress = {
 };
 export const noProgress = (): Progress => ({ inspected: 0, toInspect: 0, done: 0, total: 0, filesDone: 0, filesTotal: 0, translatingAt: 0 });
 
-/** Translates everything pending under the configured queue folder, reporting progress as it goes. */
-export const runTranslation = async (onProgress: (progress: Progress) => void, signal?: AbortSignal) => {
+/**
+ * Translates everything pending under the configured queue folder, reporting progress as it goes. With `scanOnly`, it
+ * stops after the inspection: the console then lists what a run would translate, skip or can't read, and nothing is written
+ * except the manifests' skip records.
+ */
+export const runTranslation = async (onProgress: (progress: Progress) => void, signal?: AbortSignal, scanOnly = false) => {
   // Find and group all subtitle files by RJ folder, and keep what the manifests don't record as done
   const filesByRjCode = findSubtitleFilesByRjCode();
   logger.info(`Found ${Object.keys(filesByRjCode).length} folder entries.`);
@@ -34,6 +38,8 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
   // seconv inspects every pending file first: its format (there are several for .lrc), its line count for the progress
   // bar, and its language, as a file already in the target language needs no translation
   const plan: { rjcode: string; files: PlannedFile[] }[] = [];
+  let skippedCount = 0;
+  let unreadable = 0;
   for (const [rjcode, files] of pending) {
     const planned: PlannedFile[] = [];
     const skipped: string[] = [];
@@ -42,11 +48,17 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
       const info = await inspect(path.join(config.rjPath, file), signal);
       progress.inspected++;
       if ("error" in info) {
+        logger.warn(`Can't read ${file}: ${info.error}`);
         planned.push({ file, format: "", lines: 0, error: info.error });
+        unreadable++;
       } else if (info.language?.toLowerCase() === config.translateTo.toLowerCase()) {
         logger.info(`Skipping ${file}: already in ${config.translateTo}`);
         skipped.push(file);
+        skippedCount++;
       } else {
+        if (scanOnly) {
+          logger.info(`Would translate ${file}: ${info.lines} line(s), ${info.format}`);
+        }
         planned.push({ file, format: info.format, lines: info.lines });
         lines += info.lines;
         progress.filesTotal++;
@@ -64,6 +76,12 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
   }
   progress.translatingAt = Date.now();
   onProgress({ ...progress });
+  if (scanOnly) {
+    logger.info(
+      `Scan finished: ${progress.filesTotal} file(s) with ${progress.total} line(s) to translate; ${skippedCount} already in ${config.translateTo}, ${unreadable} unreadable.`,
+    );
+    return;
+  }
 
   // Keep track of any failed translations across this run
   const allErrors: { rjcode: string; error: TranslationErrorEntry }[] = [];

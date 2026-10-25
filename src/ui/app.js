@@ -355,6 +355,16 @@ $("run").addEventListener("click", async () => {
     log("error", e.message);
   }
 });
+// Inspects the queue without translating; the Start button turns into Stop meanwhile
+$("scan").addEventListener("click", async () => {
+  try {
+    clearTimeout(saveTimer);
+    await api("POST", "/api/config", read());
+    await api("POST", "/api/scan");
+  } catch (e) {
+    log("error", e.message);
+  }
+});
 $("installSeconv").addEventListener("click", async () => {
   try {
     // resolves when seconv is installed; progress shows up in the console
@@ -395,6 +405,9 @@ const poll = async () => {
     } else if (inspecting) {
       pct = Math.round((s.inspected / s.toInspect) * 100);
       phase = `Inspecting ${s.inspected} / ${s.toInspect} files`;
+    } else if (s.scanOnly && !s.running) {
+      phase = "Scanned";
+      status = `${s.filesTotal} files · ${s.total} lines to translate`;
     } else if (s.total) {
       pct = Math.round((s.done / s.total) * 100);
       phase = `${pct}%`;
@@ -464,6 +477,7 @@ const poll = async () => {
     $("run").classList.toggle("danger", running);
     $("run").classList.toggle("primary", !running);
     $("run").disabled = !running && (busy || seconvMissing || !s.queueFound);
+    $("scan").disabled = busy || seconvMissing || !s.queueFound;
     // A run reads the settings as it goes, so they're locked until it's over (the server refuses a profile switch too)
     $("settings").disabled = busy;
     $("profile").disabled = busy;
