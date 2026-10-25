@@ -5,7 +5,10 @@ import { config } from "../config/index.ts";
 export const METADATA_FOLDER = ".trans-metadata";
 export const BACKUPS_FOLDER = "backups";
 
-/** A map of RJ code to the list of subtitle file paths (relative to `config.rjPath`) found for it. */
+/**
+ * A map of RJ folder (path relative to `config.rjPath`: the top-most folder named with an RJ code, else the file's own
+ * folder) to the list of subtitle file paths (relative to `config.rjPath`) found in it.
+ */
 export type FilesByRjCode = { [rjcode: string]: string[] };
 
 /** A map of RJ folder (absolute path) to the list of backed-up file paths (relative to that folder) found for it. */
@@ -24,7 +27,7 @@ const walk = (): string[][] => {
 /**
  * Recursively finds all subtitle files (matching `config.subtitleExtensions`, case-insensitively)
  * under `config.rjPath`, excluding anything under the tool's own metadata folder, and groups
- * them by RJ code (or by parent folder, if no RJ code can be determined from the path).
+ * them by RJ folder (or by parent folder, if no folder on the path is named with an RJ code).
  */
 export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
   const extensions = new Set(config.subtitleExtensions.map((e) => e.toLowerCase()));
@@ -42,7 +45,11 @@ export const findSubtitleFilesByRjCode = (): FilesByRjCode => {
       continue;
     }
     const filePath = segments.join(path.sep);
-    const rjcode = filePath.match(/R.\d+/)?.[0] ?? path.dirname(filePath);
+    // The manifest and the backups go in the RJ folder, so it must be a real folder on the file's path: "[RJ123456] Title",
+    // "Circle/RJ123456" and "RJ123456.lrc" at the root all used to give the phantom folder "RJ123456"
+    const folders = segments.slice(0, -1);
+    const rj = folders.findIndex((folder) => /R[JE]\d+/.test(folder));
+    const rjcode = rj >= 0 ? folders.slice(0, rj + 1).join(path.sep) : path.dirname(filePath);
     files[rjcode] ??= [];
     files[rjcode].push(filePath);
   }

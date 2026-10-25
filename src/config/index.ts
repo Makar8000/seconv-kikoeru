@@ -8,7 +8,7 @@ import openRouterProfile from "./default-profiles/openrouter.json" with { type: 
 import bundledLanguages from "./languages.json" with { type: "json" };
 
 /**
- * A profile's settings, saved in `profiles/` (in the current working directory) as a .json file named after the profile.
+ * A profile's settings, saved in `profiles/` as a .json file named after the profile.
  * See `default-profiles/default-config.json` for the settings of a new profile.
  *
  * SeConv options: https://subtitleedit.github.io/subtitleedit/reference/command-line.html

@@ -1,3 +1,4 @@
+import "./appdir.ts";
 import path from "node:path";
 import {
   config,

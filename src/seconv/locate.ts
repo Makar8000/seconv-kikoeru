@@ -5,7 +5,7 @@ export const SECONV_RELEASES_URL = "https://github.com/SubtitleEdit/subtitleedit
 export const SECONV_NOT_FOUND = `seconv was not found. Use the download button, or get it from ${SECONV_RELEASES_URL} and put it in lib/seconv/.`;
 
 const WINDOWS = process.platform === "win32";
-/** Everything the app runs lives under lib/ (relative to the working directory, like settings.json). */
+/** Everything the app runs lives under lib/ */
 const LIB_DIR = path.resolve("lib");
 export const SECONV_LIB_DIR = path.join(LIB_DIR, "seconv");
 export const SECONV_BINARY = WINDOWS ? "seconv.exe" : "seconv";

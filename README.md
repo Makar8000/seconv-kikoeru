@@ -11,7 +11,7 @@ A wrapper for [SubtitleEdit](https://github.com/SubtitleEdit/subtitleedit)'s [Se
 5) Place the files you want to translate in the queue folder (or set another folder in the app)
 6) Click **Start translation**. Progress (by line count) and log output are shown in the window.
 
-Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped. The window's browser cache lives in `.webview2/` next to the app.
+Files will be translated in-place. Backups will be placed in a `.trans-metadata/backups` subfolder within each RJ folder, mirroring that folder's structure. Metadata about translated/failed files is stored in `.trans-metadata/manifest.json` within each RJ folder. Files that have already been successfully translated (or are already in their target language) will be skipped.
 
 ## Configuration
 Settings are edited in the app and saved automatically to the loaded profile: a `.json` file in `profiles/`. The **Profile** dropdown in the header switches between profiles, and the **Profile** menu creates, copies, renames and deletes them (see [Menu](#menu)).
