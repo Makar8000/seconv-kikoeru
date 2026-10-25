@@ -21,10 +21,18 @@ export type TranslationErrorEntry = TranslatedEntry & {
   error: string;
 };
 
+/** A file seconv found to be in `translateTo` already, so it isn't inspected again for that language. */
+export type SkippedEntry = {
+  file: string;
+  timestamp: string;
+  translateTo: string;
+};
+
 export type Manifest = {
   version: number;
   translated: TranslatedEntry[];
   errors: TranslationErrorEntry[];
+  skipped: SkippedEntry[];
 };
 
 /** Type guard that checks whether a value parsed from JSON matches the shape of a `TranslatedEntry`. */
@@ -51,15 +59,22 @@ const isTranslationErrorEntry = (entry: unknown): entry is TranslationErrorEntry
   return isTranslatedEntry(entry) && typeof (entry as Record<string, unknown>).error === "string";
 };
 
+const isSkippedEntry = (entry: unknown): entry is SkippedEntry => {
+  if (typeof entry !== "object" || entry === null) {
+    return false;
+  }
+  const e = entry as Record<string, unknown>;
+  return typeof e.file === "string" && typeof e.timestamp === "string" && typeof e.translateTo === "string";
+};
+
 /**
  * Reads and validates a `manifest.json` file at `manifestPath`.
  *
- * Returns an empty manifest (version `MANIFEST_VERSION`, no translated/error entries) if the file
- * doesn't exist or fails to parse. Any entries in the `translated`/`errors` arrays that don't match
- * the expected shape are silently filtered out.
+ * Returns an empty manifest (version `MANIFEST_VERSION`, no entries) if the file doesn't exist or fails to parse.
+ * Any entries in the `translated`/`errors`/`skipped` arrays that don't match the expected shape are silently filtered out.
  */
 export const loadManifest = (manifestPath: string): Manifest => {
-  const empty: Manifest = { version: MANIFEST_VERSION, translated: [], errors: [] };
+  const empty: Manifest = { version: MANIFEST_VERSION, translated: [], errors: [], skipped: [] };
 
   if (!existsSync(manifestPath)) {
     return empty;
@@ -70,7 +85,8 @@ export const loadManifest = (manifestPath: string): Manifest => {
     if (typeof json === "object" && json !== null) {
       const translated = Array.isArray(json.translated) ? json.translated.filter(isTranslatedEntry) : [];
       const errors = Array.isArray(json.errors) ? json.errors.filter(isTranslationErrorEntry) : [];
-      return { version: MANIFEST_VERSION, translated, errors };
+      const skipped = Array.isArray(json.skipped) ? json.skipped.filter(isSkippedEntry) : [];
+      return { version: MANIFEST_VERSION, translated, errors, skipped };
     }
   } catch {
     logger.warn(`Failed to parse ${manifestPath}`);

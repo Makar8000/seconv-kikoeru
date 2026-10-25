@@ -63,7 +63,7 @@ Everything it starts comes from `lib/llama.cpp/`:
 - **Tools → Update llama.cpp** - Downloads the latest llama.cpp release into `lib/llama.cpp/bin/` (Windows only, see [Local llama.cpp](#local-llamacpp)).
 - **Tools → Restore backups** - Asks for confirmation, then restores every file in the `.trans-metadata/backups` subfolders under `rjPath` back to its original (pre-translation) content. Afterwards, each fully restored RJ folder's `.trans-metadata` folder is deleted.
 
-The menu actions and the **Profile** dropdown refuse to run while a translation, download or restore is already running.
+The settings, the menu actions and the **Profile** dropdown are locked while a translation, download or restore is running.
 
 ## Running from source
 This project requires [Bun](https://bun.com/) 1.4.4+. On Linux, the window needs WebKitGTK 4.1 and libxdo.

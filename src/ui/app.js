@@ -245,6 +245,12 @@ globalThis.confirmRestore = () => {
     api("POST", "/api/restore-backups").catch((e) => log("error", e.message));
   }
 };
+// The window was closed while busy (`reason`, e.g. "a translation is running"); the server exits on the yes
+globalThis.confirmQuit = (reason) => {
+  if (confirm(`${reason[0].toUpperCase()}${reason.slice(1)}. Stop it and quit?`)) {
+    api("POST", "/api/quit").catch(() => {});
+  }
+};
 
 // ---- run / stop / progress ----
 $("start").addEventListener("click", async () => {
@@ -275,10 +281,17 @@ const poll = async () => {
       log(l.level, l.text);
       since = l.id;
     });
-    const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+    // A run first inspects every pending file (muted bar), then translates (accent bar)
+    const inspecting = s.running && s.inspected < s.toInspect;
+    const pct = inspecting ? Math.round((s.inspected / s.toInspect) * 100) : s.total ? Math.round((s.done / s.total) * 100) : 0;
     $("bar").style.width = `${pct}%`;
+    $("progress").classList.toggle("inspecting", inspecting);
     $("progress").classList.toggle("done", !s.running && s.total > 0 && s.done >= s.total);
-    $("status").textContent = s.total ? `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines` : "";
+    $("status").textContent = inspecting
+      ? `Inspecting ${s.inspected} / ${s.toInspect} files`
+      : s.total
+        ? `${s.filesDone} / ${s.filesTotal} files, ${s.done} / ${s.total} lines`
+        : "";
     setSeconvFound(s.seconvFound);
     // Another profile was loaded (the dropdown, or a menu action): show its settings
     if (s.load !== shownLoad) {
@@ -297,6 +310,9 @@ const poll = async () => {
     $("pill").textContent = s.running ? "Running" : s.installing ? "Downloading" : s.restoring ? "Restoring" : "Idle";
     $("pill").classList.toggle("running", s.running);
     $("start").disabled = busy || seconvMissing;
+    // A run reads the settings as it goes, so they're locked until it's over (the server refuses a profile switch too)
+    $("settings").disabled = busy;
+    $("profile").disabled = busy;
     $("installSeconv").disabled = busy;
     $("installSeconv").textContent = s.installing ? "Downloading…" : "Download latest pre-release";
     $("stop").hidden = !s.running;

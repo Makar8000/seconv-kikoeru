@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { hooks, install, installLlama } from "./api.ts";
+import { busyReason, hooks, install, installLlama } from "./api.ts";
 import { config, uniqueName } from "./config/index.ts";
 
 /** Opens `url` in the system browser. */
@@ -79,6 +79,12 @@ export const openWindow = async (url: string) => {
   const showTitle = () => win.setTitle(`seconv-kikoeru - Profile: ${config.name}`);
   showTitle();
   hooks.profileChanged = showTitle;
+  // A second launch of the app asks for this instead of opening its own window
+  hooks.focus = () => {
+    win.setMinimized(false);
+    win.show();
+    win.focus();
+  };
 
   /** Runs `call` in the page: its prompt() and confirm() are the window's dialogs, and it posts the answer to the API. */
   const inPage = (call: string) => view.evaluateScript(call);
@@ -107,9 +113,19 @@ export const openWindow = async (url: string) => {
       inPage(`askProfile("delete", ${JSON.stringify(config.name)})`);
     }
   });
-  app.on("window-close-requested", () => {
+  // Closing while a run, a download or a restore is busy would kill it mid-file: the page asks first, and posts /api/quit
+  // on a yes. window-close-requested only follows a close this event lets through.
+  win.on("close", (e) => {
+    if (busyReason()) {
+      e.preventDefault();
+      inPage(`confirmQuit(${JSON.stringify(busyReason())})`);
+    }
+  });
+  const quit = () => {
     app.exit();
     setTimeout(() => process.exit(0), 50); // after the exit above, which the event pump defers
-  });
+  };
+  hooks.quit = quit;
+  app.on("window-close-requested", quit);
   app.run();
 };

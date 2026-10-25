@@ -18,7 +18,7 @@ import { installLlamaCpp, installSeconv } from "./seconv/installer.ts";
 import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
 import { restoreAllBackups } from "./translation/restorer.ts";
-import { type Progress, runTranslation } from "./translation/runner.ts";
+import { noProgress, type Progress, runTranslation } from "./translation/runner.ts";
 
 /*
  * The app's local HTTP API for the page in src/ui: the page's files, the settings, start/stop, the installs, the restore
@@ -37,9 +37,10 @@ const asset = (route: string) => {
 };
 
 type State = { running: boolean; installing: boolean; restoring: boolean } & Progress;
-const state: State = { running: false, installing: false, restoring: false, done: 0, total: 0, filesDone: 0, filesTotal: 0 };
+const state: State = { running: false, installing: false, restoring: false, ...noProgress() };
 
-const busyReason = () =>
+/** Why the app is busy, or "" when it's idle. */
+export const busyReason = () =>
   state.running ? "a translation is running" : state.installing ? "a download is running" : state.restoring ? "backups are being restored" : "";
 let abort: AbortController | undefined;
 
@@ -55,7 +56,7 @@ const start = () => {
   }
   const controller = new AbortController();
   abort = controller;
-  Object.assign(state, { running: true, done: 0, total: 0, filesDone: 0, filesTotal: 0 });
+  Object.assign(state, { running: true, ...noProgress() });
   logger.info("Starting translation...");
   const translate = async () => {
     // llama.cpp: the server already running at its URL, or one started for this run (downloaded first if needed)
@@ -106,8 +107,15 @@ const restore = () =>
     logger.info("Finished restoring all backups.");
   });
 
-/** What the window does after a profile action: it shows the loaded profile's name in the title. */
-export const hooks = { profileChanged: () => {} };
+/**
+ * Set by the window: `profileChanged` shows the loaded profile's name in the title, `quit` closes the window and exits,
+ * `focus` brings the window to the front.
+ */
+export const hooks: { profileChanged: () => void; quit: () => void; focus: () => void } = {
+  profileChanged: () => {},
+  quit: () => process.exit(0),
+  focus: () => {},
+};
 
 /** Runs a Profile menu action or a switch in the page's profile dropdown; the page then reloads the settings. */
 const changeProfile = (action: () => void) => {
@@ -150,6 +158,16 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     start();
     return state;
   },
+  // The page has confirmed that the running translation, download or restore may be killed
+  "POST /api/quit": () => {
+    hooks.quit();
+    return state;
+  },
+  // A second launch of the app, which exits once this one's window is in front
+  "POST /api/focus": () => {
+    hooks.focus();
+    return { app: APP };
+  },
   "POST /api/install-seconv": install,
   "POST /api/install-llamacpp": installLlama,
   "POST /api/restore-backups": async () => {
@@ -176,41 +194,76 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
   },
 };
 
-export const server = Bun.serve({
-  hostname: "127.0.0.1",
-  port: 0,
-  idleTimeout: 0, // an install or a restore holds its request for minutes
-  async fetch(req) {
-    const url = new URL(req.url);
-    // Bun builds `req.url` from the Host header. A website whose DNS name is pointed at 127.0.0.1 would otherwise be
-    // same-origin with this API in a browser (DNS rebinding) and could read the settings, API keys included.
-    if (url.hostname !== "127.0.0.1") {
-      return json({ error: "Forbidden" }, 403);
-    }
-    if (req.method === "GET" && url.pathname in ASSETS) {
-      return asset(url.pathname);
-    }
+/**
+ * The API's port. Fixed, so that a second launch of the app finds the instance already running: it has that one bring its
+ * window to the front and exits, as both would otherwise write the same profiles and start llama-server on the same port.
+ */
+const PORT = 51923;
+/** What /api/focus answers, so that an unrelated program on the port isn't taken for a running instance. */
+const APP = "seconv-kikoeru";
 
-    const handler = handlers[`${req.method} ${url.pathname}`];
-    if (!handler) {
-      return json({ error: "Not found" }, 404);
-    }
+const serve = (port: number) =>
+  Bun.serve({
+    hostname: "127.0.0.1",
+    port,
+    idleTimeout: 0, // an install or a restore holds its request for minutes
+    async fetch(req) {
+      const url = new URL(req.url);
+      // Bun builds `req.url` from the Host header. A website whose DNS name is pointed at 127.0.0.1 would otherwise be
+      // same-origin with this API in a browser (DNS rebinding) and could read the settings, API keys included.
+      if (url.hostname !== "127.0.0.1") {
+        return json({ error: "Forbidden" }, 403);
+      }
+      if (req.method === "GET" && url.pathname in ASSETS) {
+        return asset(url.pathname);
+      }
 
-    // Requiring a JSON content type forces a CORS preflight for cross-origin pages, which we never grant,
-    // so other websites can't drive this local API.
-    if (req.method === "POST" && !req.headers.get("content-type")?.startsWith("application/json")) {
-      return json({ error: "Expected application/json" }, 415);
-    }
+      const handler = handlers[`${req.method} ${url.pathname}`];
+      if (!handler) {
+        return json({ error: "Not found" }, 404);
+      }
 
-    try {
-      const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-      return json(await handler(body, url));
-    } catch (e) {
-      logger.error(e);
-      return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      // Requiring a JSON content type forces a CORS preflight for cross-origin pages, which we never grant,
+      // so other websites can't drive this local API.
+      if (req.method === "POST" && !req.headers.get("content-type")?.startsWith("application/json")) {
+        return json({ error: "Expected application/json" }, 415);
+      }
+
+      try {
+        const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+        return json(await handler(body, url));
+      } catch (e) {
+        logger.error(e);
+        return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      }
+    },
+  });
+
+/** Listens on PORT; when a running instance has it, exits after that one has shown its window. */
+const listen = async () => {
+  try {
+    return serve(PORT);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EADDRINUSE") {
+      throw e;
     }
-  },
-});
+  }
+  const other = await fetch(`http://127.0.0.1:${PORT}/api/focus`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    signal: AbortSignal.timeout(2000),
+  })
+    .then((res) => res.json())
+    .then((body) => body?.app === APP)
+    .catch(() => false);
+  if (other) {
+    process.exit(0);
+  }
+  // An unrelated program has the port; the window takes any
+  return serve(0);
+};
+
+export const server = await listen();
 
 // The llama-server, and the seconv, started for a run must not outlive the app
 process.on("exit", () => {

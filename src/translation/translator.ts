@@ -35,14 +35,30 @@ const backupFile = (rjFolder: string, relativeFile: string) => {
   copyFileSync(path.join(config.rjPath, relativeFile), bakFilePath);
 };
 
-/** The `files` (paths relative to `config.rjPath`) of RJ folder `rjcode` not yet recorded as translated in its manifest. */
+/**
+ * The `files` (paths relative to `config.rjPath`) of RJ folder `rjcode` that its manifest doesn't record as translated, or
+ * as found in the target language already.
+ */
 export const pendingFiles = (rjcode: string, files: string[]): string[] => {
-  const translated = new Set(loadManifest(manifestPathOf(rjcode)).translated.map((e) => e.file));
-  const pending = files.filter((file) => !translated.has(toRjFolderRelative(rjcode, file)));
+  const manifest = loadManifest(manifestPathOf(rjcode));
+  const to = config.translateTo.toLowerCase();
+  const done = new Set([...manifest.translated, ...manifest.skipped.filter((e) => e.translateTo.toLowerCase() === to)].map((e) => e.file));
+  const pending = files.filter((file) => !done.has(toRjFolderRelative(rjcode, file)));
   if (pending.length !== files.length) {
-    logger.info(`Skipping ${files.length - pending.length} already-translated file(s)`);
+    logger.info(`Skipping ${files.length - pending.length} file(s) translated, or found in ${config.translateTo}, before`);
   }
   return pending;
+};
+
+/** Records `files` (paths relative to `config.rjPath`) of RJ folder `rjcode` as being in the target language already. */
+export const recordSkipped = (rjcode: string, files: string[]) => {
+  const manifestPath = manifestPathOf(rjcode);
+  const manifest = loadManifest(manifestPath);
+  const timestamp = new Date().toISOString();
+  for (const file of files) {
+    upsertByFile(manifest.skipped, { file: toRjFolderRelative(rjcode, file), timestamp, translateTo: config.translateTo });
+  }
+  saveManifest(manifestPath, manifest);
 };
 
 /**

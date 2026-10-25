@@ -78,8 +78,13 @@ h1 {
 }
 
 /* ---- cards & fields ---- */
-/* Shrinks and scrolls on short windows so the console below always stays visible */
+/* The settings form (a fieldset, disabled as a whole while the app is busy). Shrinks and scrolls on short windows so the
+   console below always stays visible */
 .settings {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
   flex: 0 1 auto;
   min-height: 0;
   overflow: auto;
@@ -155,7 +160,8 @@ button:focus-visible {
   outline: none;
   border-color: var(--accent);
 }
-input:disabled {
+input:disabled,
+select:disabled {
   opacity: 0.45;
 }
 input[type="checkbox"] {
@@ -294,6 +300,13 @@ button svg,
   background: none;
   font-size: 13px;
 }
+/* While the form is locked, a list dims as a whole, not its input and buttons a second time */
+.settings:disabled .chips {
+  opacity: 0.45;
+}
+.settings:disabled .chips :is(input, button) {
+  opacity: 1;
+}
 
 /* ---- run bar ---- */
 .runbar {
@@ -314,6 +327,9 @@ button svg,
   background: var(--accent);
   border-radius: 999px;
   transition: width 0.25s ease;
+}
+.progress.inspecting > div {
+  background: var(--muted);
 }
 .progress.done > div {
   background: var(--ok);
