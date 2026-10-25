@@ -39,6 +39,7 @@ body {
 }
 
 [hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: a hidden element must stay hidden whatever display its classes set */
   display: none !important;
 }
 
