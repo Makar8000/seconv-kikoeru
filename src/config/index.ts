@@ -133,14 +133,14 @@ const normalize = (raw: unknown, name = defaults.name): Config => {
   const input = isRecord(raw) ? raw : {};
   const result = structuredClone(defaults);
 
-  // Blank values fall back to the default, except translateFrom where blank means auto-detect
+  // Blank values fall back to the default. Exceptions: a blank translateFrom means auto-detect, and the required
+  // rjPath / subtitleExtensions stay blank (only a missing config gets the default)
   result.name = str(input.name) || name;
   result.translateEngine = str(input.translateEngine) || defaults.translateEngine;
   result.translateFrom = str(input.translateFrom) ?? defaults.translateFrom;
   result.translateTo = str(input.translateTo) || defaults.translateTo;
-  result.rjPath = str(input.rjPath) || defaults.rjPath;
-  const extensions = list(input.subtitleExtensions);
-  result.subtitleExtensions = extensions.length ? extensions : defaults.subtitleExtensions;
+  result.rjPath = str(input.rjPath) ?? defaults.rjPath;
+  result.subtitleExtensions = Array.isArray(input.subtitleExtensions) ? list(input.subtitleExtensions) : defaults.subtitleExtensions;
 
   const engines: Record<string, unknown> = isRecord(input.engines) ? input.engines : {};
   // Every known engine gets an entry, plus any hand-typed engine that is selected or already configured

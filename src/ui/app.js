@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const inputs = [...document.querySelectorAll("[data-key]")];
 const lists = [...document.querySelectorAll("[data-list]")];
+const extensionsList = document.querySelector('[data-list="subtitleExtensions"]');
 
 const api = async (method, path, body) => {
   const res = await fetch(path, {
@@ -439,9 +440,20 @@ const poll = async () => {
     $("phase").textContent = phase;
     $("status").textContent = status;
     setSeconvFound(s.seconvFound);
-    // The saved queue directory is checked on every poll, so creating or renaming it outside the app shows at once
-    $("rjPathError").hidden = s.queueFound;
-    $("rjPath").classList.toggle("error", !s.queueFound);
+    // The queue fields are required. The saved directory is checked on every poll, so creating or renaming it outside
+    // the app shows at once
+    let queueError = "";
+    if (!$("rjPath").value.trim()) {
+      queueError = "Required";
+    } else if (!s.queueFound) {
+      queueError = "Folder not found";
+    }
+    $("rjPathError").textContent = queueError;
+    $("rjPathError").hidden = !queueError;
+    $("rjPath").classList.toggle("error", queueError !== "");
+    const noExtensions = chips(extensionsList).length === 0;
+    $("extensionsError").hidden = !noExtensions;
+    extensionsList.classList.toggle("error", noExtensions);
     // Another profile was loaded (the dropdown, or a menu action): show its settings
     if (s.load !== shownLoad) {
       api("GET", "/api/config")
@@ -485,8 +497,12 @@ const poll = async () => {
       blocked = "Backups are being restored";
     } else if (seconvMissing) {
       blocked = "seconv was not found";
-    } else if (!s.queueFound) {
+    } else if (queueError === "Required") {
+      blocked = "The queue directory is required";
+    } else if (queueError) {
       blocked = "The queue directory was not found";
+    } else if (noExtensions) {
+      blocked = "At least one file extension is required";
     }
     $("run").disabled = !running && blocked !== "";
     $("run").title = $("run").disabled ? blocked : "";

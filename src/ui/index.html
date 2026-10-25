@@ -108,7 +108,10 @@
           <div class="field half">
             <label for="subtitleExtensions-input">File extensions</label>
             <div class="chips" data-list="subtitleExtensions"></div>
-            <small class="hint">Type an extension such as srt and press Enter</small>
+            <div class="hint-row">
+              <small class="hint">Type an extension such as srt and press Enter</small>
+              <small class="hint error" id="extensionsError" hidden>At least one is required</small>
+            </div>
           </div>
         </div>
       </section>

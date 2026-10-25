@@ -67,12 +67,22 @@ export const busyReason = () =>
   state.running ? "a translation is running" : state.installing ? "a download is running" : state.restoring ? "backups are being restored" : "";
 let abort: AbortController | undefined;
 
-/** Whether the queue directory exists; the page says so under the field and keeps Start disabled until it does. */
+/** Whether the queue directory is set and exists; the page says so under the field and keeps Start disabled until it does. */
 const queueFound = () => {
+  if (!config.rjPath) {
+    return false; // path.resolve("") would be the app's own folder
+  }
   try {
     return statSync(path.resolve(config.rjPath)).isDirectory();
   } catch {
     return false;
+  }
+};
+
+/** The page keeps Start, Scan and the restore away while the queue settings are blank; this covers the API itself. */
+const checkQueue = () => {
+  if (!queueFound()) {
+    throw new Error(config.rjPath ? "The queue directory was not found." : "The queue directory is required.");
   }
 };
 
@@ -86,6 +96,10 @@ const start = (scanOnly = false) => {
   }
   if (!findSeconv()) {
     throw new Error(SECONV_NOT_FOUND);
+  }
+  checkQueue();
+  if (!config.subtitleExtensions.length) {
+    throw new Error("At least one file extension is required.");
   }
   const controller = new AbortController();
   abort = controller;
@@ -160,6 +174,7 @@ export const installLlama = () => exclusive("installing", "update llama.cpp", ()
 
 const restore = () =>
   exclusive("restoring", "restore backups", async () => {
+    checkQueue();
     await restoreAllBackups();
     logger.info("Finished restoring all backups.");
   });

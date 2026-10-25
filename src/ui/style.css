@@ -342,6 +342,9 @@ button svg,
 .chips:focus-within {
   border-color: var(--accent);
 }
+.chips.error {
+  border-color: var(--danger);
+}
 .chip {
   display: inline-flex;
   align-items: center;
