@@ -186,13 +186,22 @@ const startServer = async (model: string, port: number, signal: AbortSignal) => 
   };
   child.stdout?.on("data", keep);
   child.stderr?.on("data", keep);
+  let ready = false;
   const exited = new Promise<never>((_, reject) => {
     child.on("error", reject);
-    child.on("exit", (code) => reject(new Error(`llama-server stopped (exit code ${code}). ${output.trim()}`)));
+    child.on("exit", (code) => {
+      reject(new Error(`llama-server stopped (exit code ${code}). ${output.trim()}`));
+      // Once it was ready, only a crash gets here: stopLlamaServer() forgets the child before killing it
+      if (ready && server === child) {
+        logger.error(`llama-server stopped on its own (exit code ${code}); the remaining files will fail. ${output.trim()}`);
+        server = undefined;
+      }
+    });
   });
-  exited.catch(() => {}); // once it's ready, a stop only shows in seconv's requests
+  exited.catch(() => {}); // before it's ready, the race below reports the failure
   try {
     await Promise.race([waitUntilReady(`http://127.0.0.1:${port}`, signal), exited]);
+    ready = true;
   } catch (e) {
     stopLlamaServer();
     throw e;

@@ -62,6 +62,14 @@ export const recordSkipped = (rjcode: string, files: string[]) => {
 };
 
 /**
+ * How many files in a row may fail with the same message before a run stops: that many identical failures mean the
+ * server is down or a setting is wrong, not that the files are.
+ */
+export const MAX_REPEATED_FAILURES = 3;
+/** The run's current streak of identical failures, shared by every folder's translateFiles(). */
+export type FailureStreak = { error: string; count: number };
+
+/**
  * Translates the planned `files` of RJ folder `rjcode`, one `seconv` call at a time, backing each up first.
  * Each file's success/error result is recorded/updated in the manifest as soon as it's known.
  *
@@ -73,12 +81,16 @@ export const translateFiles = async (
   /** Called with the line count of each file finished (translated or failed). */
   onProgress: (lines: number) => void = () => {},
   signal?: AbortSignal,
+  streak: FailureStreak = { error: "", count: 0 },
 ): Promise<TranslationErrorEntry[]> => {
   const manifestPath = manifestPathOf(rjcode);
   const manifest = loadManifest(manifestPath);
   const runErrors: TranslationErrorEntry[] = [];
 
   for (const { file, format, lines, error } of files) {
+    if (streak.count >= MAX_REPEATED_FAILURES) {
+      break; // the runner stops the run
+    }
     if (!error) {
       backupFile(path.join(config.rjPath, rjcode), file);
     }
@@ -98,6 +110,7 @@ export const translateFiles = async (
         additionalArgs: engineConfig().additionalArgs,
       });
       removeByFile(manifest.errors, manifestFile);
+      streak.count = 0;
     } else {
       const errorEntry: TranslationErrorEntry = {
         file: manifestFile,
@@ -112,6 +125,8 @@ export const translateFiles = async (
       logger.error(`Failed ${file}: ${errorEntry.error}`);
       upsertByFile(manifest.errors, errorEntry);
       runErrors.push(errorEntry);
+      streak.count = errorEntry.error === streak.error ? streak.count + 1 : 1;
+      streak.error = errorEntry.error;
     }
     // Saved after every file, as seconv has already overwritten a translated one in place
     saveManifest(manifestPath, manifest);

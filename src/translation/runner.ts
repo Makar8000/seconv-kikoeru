@@ -4,7 +4,7 @@ import { logger } from "../logger.ts";
 import { inspect } from "../seconv/convert.ts";
 import { findSubtitleFilesByRjCode } from "./fileDiscovery.ts";
 import type { TranslationErrorEntry } from "./manifest.ts";
-import { type PlannedFile, pendingFiles, recordSkipped, translateFiles } from "./translator.ts";
+import { type FailureStreak, MAX_REPEATED_FAILURES, type PlannedFile, pendingFiles, recordSkipped, translateFiles } from "./translator.ts";
 
 /**
  * Progress: files inspected while planning, then lines (`done` / `total`, for the bar) and files (for the status text).
@@ -24,7 +24,7 @@ export const noProgress = (): Progress => ({ inspected: 0, toInspect: 0, done: 0
 /**
  * Translates everything pending under the configured queue folder, reporting progress as it goes. With `scanOnly`, it
  * stops after the inspection: the console then lists what a run would translate, skip or can't read, and nothing is written
- * except the manifests' skip records.
+ * except the manifests' skip records. Returns false when the run was cut short.
  */
 export const runTranslation = async (onProgress: (progress: Progress) => void, signal?: AbortSignal, scanOnly = false) => {
   // Find and group all subtitle files by RJ folder, and keep what the manifests don't record as done
@@ -80,15 +80,18 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
     logger.info(
       `Scan finished: ${progress.filesTotal} file(s) with ${progress.total} line(s) to translate; ${skippedCount} already in ${config.translateTo}, ${unreadable} unreadable.`,
     );
-    return;
+    return true;
   }
 
   // Keep track of any failed translations across this run
   const allErrors: { rjcode: string; error: TranslationErrorEntry }[] = [];
+  const streak: FailureStreak = { error: "", count: 0 };
+  let completed = true;
 
   for (const { rjcode, files } of plan) {
     if (signal?.aborted) {
       logger.warn("Stopped.");
+      completed = false;
       break;
     }
     logger.info(`\nParsing ${rjcode}...`);
@@ -102,8 +105,14 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
           onProgress({ ...progress });
         },
         signal,
+        streak,
       );
       allErrors.push(...errors.map((error) => ({ rjcode, error })));
+      if (streak.count >= MAX_REPEATED_FAILURES) {
+        logger.error(`Stopping: ${streak.count} files in a row failed with the same error. Check the server and the settings.`);
+        completed = false;
+        break;
+      }
       logger.info(`Completed ${rjcode}`);
     } catch (e) {
       if (!signal?.aborted) {
@@ -117,4 +126,5 @@ export const runTranslation = async (onProgress: (progress: Progress) => void, s
     const failedList = allErrors.map(({ rjcode, error }) => `${rjcode}/${error.file}\n  ${error.error}`).join("\n");
     logger.error(`\nSome translations failed. List of failed files:\n${failedList}`);
   }
+  return completed;
 };

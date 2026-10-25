@@ -118,7 +118,7 @@ const start = (scanOnly = false) => {
     }
     setPhase("Scanning");
     try {
-      await runTranslation(
+      return await runTranslation(
         (p) => {
           Object.assign(state, p);
           state.phase = ""; // from the first progress on, the counts say what's happening
@@ -132,8 +132,8 @@ const start = (scanOnly = false) => {
     }
   };
   translate()
-    .then(() => {
-      if (controller.signal.aborted) {
+    .then((completed) => {
+      if (controller.signal.aborted || !completed) {
         logger.info(`${what} stopped.`);
       } else if (!scanOnly) {
         logger.info("Finished processing all files."); // a scan logs its own summary
