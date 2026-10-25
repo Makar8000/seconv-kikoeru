@@ -33,7 +33,18 @@
             <label for="translateEngine">Engine</label>
             <select id="translateEngine" data-key="translateEngine"></select>
           </div>
-          <div class="field">
+          <div class="field wide">
+            <label for="translateUrl">Server URL</label>
+            <input id="translateUrl" data-key="url" autocomplete="off" data-engine spellcheck="false">
+          </div>
+          <div class="field full" data-engines="openai-compatible deepl">
+            <label for="translateApiKey">API key</label>
+            <div class="secret">
+              <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
+              <button type="button" id="showApiKey" class="ghost">Show</button>
+            </div>
+          </div>
+          <div class="field half">
             <label for="translateModel">Model</label>
             <input id="translateModel" data-key="model" autocomplete="off" data-engine spellcheck="false">
           </div>
@@ -44,17 +55,6 @@
           <div class="field">
             <label for="translateTo">Translate to</label>
             <select id="translateTo" data-key="translateTo"></select>
-          </div>
-          <div class="field full">
-            <label for="translateUrl">Server URL</label>
-            <input id="translateUrl" data-key="url" autocomplete="off" data-engine spellcheck="false">
-          </div>
-          <div class="field full" data-engines="openai-compatible deepl">
-            <label for="translateApiKey">API key</label>
-            <div class="secret">
-              <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
-              <button type="button" id="showApiKey" class="ghost">Show</button>
-            </div>
           </div>
           <div class="field full" data-engines="llamacpp openai-compatible">
             <div class="label-row">

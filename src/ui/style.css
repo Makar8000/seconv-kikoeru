@@ -123,6 +123,9 @@ h1 {
 .field.half {
   grid-column: span 2;
 }
+.field.wide {
+  grid-column: span 3;
+}
 .label-row {
   display: flex;
   align-items: center;
