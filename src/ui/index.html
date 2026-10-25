@@ -51,7 +51,10 @@
           </div>
           <div class="field full" data-engines="openai-compatible deepl">
             <label for="translateApiKey">API key</label>
-            <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
+            <div class="secret">
+              <input id="translateApiKey" type="password" data-key="apiKey" data-engine autocomplete="off" spellcheck="false">
+              <button type="button" id="showApiKey" class="ghost">Show</button>
+            </div>
           </div>
           <div class="field full" data-engines="llamacpp openai-compatible">
             <div class="label-row">
@@ -64,7 +67,7 @@
         </div>
         <!-- Rarely changed: closed by default so the common fields fit on one screen -->
         <details class="advanced">
-          <summary>Advanced</summary>
+          <summary id="advancedSummary">Advanced</summary>
           <div class="fields">
           <div class="field" data-engines="llamacpp">
             <label for="temperature">Temperature</label>

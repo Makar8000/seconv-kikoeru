@@ -5,14 +5,15 @@ const COLORS = {
 
 const MAX_ENTRIES = 2000;
 
-export type LogEntry = { id: number; level: "info" | "warn" | "error"; text: string };
+/** `time`: ms since the epoch, shown as a clock time in the page's console */
+export type LogEntry = { id: number; level: "info" | "warn" | "error"; text: string; time: number };
 
 const entries: LogEntry[] = [];
 let nextId = 1;
 
 const record = (level: LogEntry["level"], args: unknown[]) => {
   const text = args.map((a) => (a instanceof Error ? (a.stack ?? a.message) : typeof a === "string" ? a : Bun.inspect(a))).join(" ");
-  entries.push({ id: nextId++, level, text });
+  entries.push({ id: nextId++, level, text, time: Date.now() });
   if (entries.length > MAX_ENTRIES) {
     entries.shift();
   }

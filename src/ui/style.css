@@ -244,6 +244,7 @@ input[type="checkbox"]:focus-visible {
 .profile select {
   width: auto;
   min-width: 200px;
+  max-width: 420px;
   padding: 4px 8px;
 }
 
@@ -435,6 +436,10 @@ button svg,
   white-space: pre-wrap;
   word-break: break-word;
 }
+#console .time {
+  color: #5d6575;
+  margin-right: 8px;
+}
 #console .info {
   color: #b4bbc9;
 }
@@ -479,4 +484,22 @@ button svg,
 .notice a {
   color: var(--accent-hover);
   word-break: break-all;
+}
+
+/* ---- the API key with its Show/Hide button inside the field (after the generic input and button rules) ---- */
+.secret {
+  position: relative;
+}
+.secret input {
+  padding-right: 64px;
+}
+/* Edge's own eye would be a second control, and it never shows for the saved key anyway */
+.secret input::-ms-reveal {
+  display: none;
+}
+.secret button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
 }

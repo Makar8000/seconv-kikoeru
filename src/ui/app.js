@@ -15,12 +15,18 @@ const api = async (method, path, body) => {
   return data;
 };
 
-const log = (level, text) => {
+const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+/** Appends a console line, stamped with the time it was logged (server lines bring theirs) */
+const log = (level, text, time = Date.now()) => {
   const c = $("console");
   const stick = c.scrollTop + c.clientHeight >= c.scrollHeight - 5;
   const line = document.createElement("div");
   line.className = level;
-  line.textContent = text;
+  const stamp = document.createElement("span");
+  stamp.className = "time";
+  stamp.textContent = clock(time);
+  const lead = text.match(/^\n*/)[0]; // a line that starts with blank lines keeps them above its stamp
+  line.append(lead, stamp, text.slice(lead.length));
   c.append(line);
   if (stick) {
     c.scrollTop = c.scrollHeight;
@@ -60,8 +66,19 @@ const read = () => ({
   load: shownLoad,
 });
 
+// The Advanced section is closed by default, so its summary says when there are arguments inside
+const showAdvancedSummary = () => {
+  const n = chips(document.querySelector('[data-list="additionalArgs"]')).length;
+  let text = "Advanced";
+  if (n) {
+    text = `Advanced · ${n} argument${n === 1 ? "" : "s"}`;
+  }
+  $("advancedSummary").textContent = text;
+};
+
 let saveTimer;
 const save = () => {
+  showAdvancedSummary();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
@@ -164,6 +181,10 @@ const showEngine = () => {
     renderList(l, e[l.dataset.list]);
   }
   syncPromptToggle();
+  showAdvancedSummary();
+  // Another engine (or profile) may have another key: never show one the user didn't ask to see
+  $("translateApiKey").type = "password";
+  $("showApiKey").textContent = "Show";
   // The URL an empty field means: the app's own for llama.cpp, seconv's for the rest
   $("translateUrl").placeholder = EMPTY_URL[shownEngine] ?? "";
   const llamaCpp = shownEngine === "llamacpp";
@@ -219,6 +240,12 @@ for (const f of inputs) {
   f.addEventListener(f.tagName === "SELECT" || f.type === "checkbox" ? "change" : "input", save);
 }
 $("useCustomPrompt").addEventListener("change", syncPromptToggle);
+$("showApiKey").addEventListener("click", () => {
+  const field = $("translateApiKey");
+  const shown = field.type === "text";
+  field.type = shown ? "password" : "text";
+  $("showApiKey").textContent = shown ? "Show" : "Hide";
+});
 $("translateEngine").addEventListener("change", () => {
   engines[shownEngine] = readEngine(); // keep what was typed for the engine we're leaving
   shownEngine = $("translateEngine").value;
@@ -308,7 +335,7 @@ const poll = async () => {
   try {
     const s = await api("GET", `/api/state?since=${since}`);
     s.logs.forEach((l) => {
-      log(l.level, l.text);
+      log(l.level, l.text, l.time);
       since = l.id;
     });
     // A run first sets up (its phase), then inspects every pending file (muted bar), then translates (accent bar).
