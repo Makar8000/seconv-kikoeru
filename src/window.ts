@@ -1,9 +1,8 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { busyReason, hooks, install, installLlama, state } from "./api.ts";
+import { busyReason, hooks, install, installLlama, queueFolderOf, state } from "./api.ts";
 import { config, uniqueName } from "./config/index.ts";
 import { logger } from "./logger.ts";
-import { isFile } from "./utils/fs.ts";
 
 /** Opens `url` in the system browser. */
 const openInBrowser = (url: string) => {
@@ -154,29 +153,26 @@ export const openWindow = async (url: string) => {
     }
   });
   /**
-   * Makes `dropped` (a file: its folder) the queue directory, through the page so that it's saved like an edit. There's no
+   * Makes `item` (a file: its folder) the queue directory, through the page so that it's saved like an edit. There's no
    * folder picker on purpose: Windows records what a picker shows in the registry.
    */
-  const useDropped = (dropped: string) => {
+  const setQueueFrom = (item: string) => {
     if (busyReason()) {
       logger.warn(`Can't change the queue directory while ${busyReason()}.`);
       return;
     }
-    let folder = dropped;
-    if (isFile(dropped)) {
-      folder = path.dirname(dropped);
-    }
-    inPage(`setQueueFolder(${JSON.stringify(folder)})`);
+    inPage(`setQueueFolder(${JSON.stringify(queueFolderOf(item))})`);
   };
+  hooks.setQueueFrom = setQueueFrom; // the argument of a second launch (a drop on the executable)
   view.on("drag-drop", ({ paths }) => {
     if (paths[0]) {
-      useDropped(paths[0]);
+      setQueueFrom(paths[0]);
     }
   });
   // The title bar and the menu bar
   win.on("file-drop", ({ files }) => {
     if (files?.[0]) {
-      useDropped(files[0]);
+      setQueueFrom(files[0]);
     }
   });
   const quit = () => {

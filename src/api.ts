@@ -20,6 +20,7 @@ import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.t
 import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
 import { restoreAllBackups } from "./translation/restorer.ts";
 import { noProgress, type Progress, runTranslation } from "./translation/runner.ts";
+import { isFile } from "./utils/fs.ts";
 
 /*
  * The app's local HTTP API for the page in src/ui: the page's files, the settings, start/stop, the installs, the restore
@@ -194,11 +195,15 @@ const restore = () =>
  * Set by the window: `stateChanged` shows the loaded profile and the run's progress (title, taskbar), `quit` closes the
  * window and exits, `focus` brings the window to the front.
  */
-export const hooks: { stateChanged: () => void; quit: () => void; focus: () => void } = {
+export const hooks: { stateChanged: () => void; quit: () => void; focus: () => void; setQueueFrom: (item: string) => void } = {
   stateChanged: () => {},
   quit: () => process.exit(0),
   focus: () => {},
+  setQueueFrom: () => {},
 };
+
+/** The queue directory `item` (a file or folder path) means: the folder itself, or a file's folder. */
+export const queueFolderOf = (item: string) => (isFile(item) ? path.dirname(item) : item);
 
 /** Runs a Profile menu action or a switch in the page's profile dropdown; the page then reloads the settings. */
 const changeProfile = (action: () => void) => {
@@ -251,9 +256,12 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     hooks.quit();
     return state;
   },
-  // A second launch of the app, which exits once this one's window is in front
-  "POST /api/focus": () => {
+  // A second launch of the app, which exits once this one's window is in front; `path` is that launch's argument
+  "POST /api/focus": (body) => {
     hooks.focus();
+    if (typeof body.path === "string") {
+      hooks.setQueueFrom(body.path);
+    }
     return { app: APP };
   },
   "POST /api/install-seconv": install,
@@ -292,6 +300,8 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
 const PORT = 51923;
 /** What /api/focus answers, so that an unrelated program on the port isn't taken for a running instance. */
 const APP = "seconv-kikoeru";
+/** A file or folder path given on the command line */
+const PATH_ARG = process.argv[2] ?? "";
 
 const serve = (port: number) =>
   Bun.serve({
@@ -342,6 +352,7 @@ const listen = async () => {
   const other = await fetch(`http://127.0.0.1:${PORT}/api/focus`, {
     method: "POST",
     headers: { "content-type": "application/json" },
+    body: JSON.stringify(PATH_ARG ? { path: PATH_ARG } : {}),
     signal: AbortSignal.timeout(2000),
   })
     .then((res) => res.json())
@@ -355,6 +366,11 @@ const listen = async () => {
 };
 
 export const server = await listen();
+
+if (PATH_ARG) {
+  updateConfig({ ...config, rjPath: queueFolderOf(PATH_ARG) });
+  logger.info(`Queue directory set to ${config.rjPath}`);
+}
 
 // The llama-server, and the seconv, started for a run must not outlive the app
 process.on("exit", () => {
