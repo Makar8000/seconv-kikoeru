@@ -15,6 +15,7 @@ import {
   updateConfig,
 } from "./config/index.ts";
 import { getLogsSince, logger } from "./logger.ts";
+import { listPath } from "./paths.ts";
 import { installLlamaCpp, installSeconv } from "./seconv/installer.ts";
 import { openLlamaCpp, stopLlamaServer, usesLlamaCpp } from "./seconv/llamacpp.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./seconv/locate.ts";
@@ -32,6 +33,8 @@ const ASSETS: Record<string, { file: string; type: string }> = {
   "/": { file: "index.html", type: "text/html; charset=utf-8" },
   "/style.css": { file: "style.css", type: "text/css; charset=utf-8" },
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
+  "/picker.css": { file: "picker.css", type: "text/css; charset=utf-8" },
+  "/picker.js": { file: "picker.js", type: "text/javascript; charset=utf-8" },
 };
 const asset = (route: string) => {
   const { file, type } = ASSETS[route];
@@ -243,6 +246,8 @@ const handlers: Record<string, (body: Record<string, unknown>, url: URL) => unkn
     queueFound: queueFound(),
     logs: getLogsSince(Number(url.searchParams.get("since")) || 0),
   }),
+  // The page's path picker browses this machine through this
+  "GET /api/paths": (_body, url) => listPath(url.searchParams.get("path") ?? ""),
   "POST /api/start": () => {
     start();
     return state;

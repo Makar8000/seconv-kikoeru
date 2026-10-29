@@ -127,6 +127,9 @@ h1 {
 .field.wide {
   grid-column: span 3;
 }
+.fields.queue {
+  grid-template-columns: 2fr 1fr;
+}
 .label-row {
   display: flex;
   align-items: center;
@@ -375,7 +378,7 @@ button svg,
 }
 .chips input {
   flex: 1;
-  min-width: 140px;
+  min-width: 40px;
   width: auto;
   padding: 3px 4px;
   border: 0;

@@ -1,0 +1,311 @@
+/*
+ * The path picker (picker.js): the Browse button in the queue field, then the dialog: title bar, toolbar (up and the
+ * breadcrumbs), the drives beside the list, the footer. Its colours are the --picker-* properties on .picker.
+ */
+.browse {
+  position: relative;
+}
+.browse input {
+  padding-right: 84px;
+}
+/* A size down, to sit inside the field */
+.browse button {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.picker {
+  user-select: none; /* a double-click would otherwise highlight text */
+  --picker-chrome: var(--surface-2);
+  --picker-list-bg: var(--bg);
+  --picker-row-hover: var(--surface-2);
+  --picker-selected: var(--accent);
+  --picker-selected-text: #fff;
+  --picker-folder: #e3b341;
+  --picker-file: var(--muted);
+  --picker-places-width: 168px;
+  --picker-list-height: 380px;
+  width: min(780px, calc(100vw - 32px));
+  padding: 0;
+  overflow: hidden;
+}
+.picker form {
+  gap: 0;
+}
+.picker-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.picker-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.picker-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.picker-close:hover:not(:disabled) {
+  background: var(--picker-row-hover);
+  color: var(--text);
+}
+
+/* ---- toolbar: up, then the path as breadcrumbs (click the empty part to type a path) ---- */
+.picker-tools {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--picker-chrome);
+  border-bottom: 1px solid var(--border);
+}
+.picker-up {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  padding: 0;
+  flex: none;
+}
+.picker-bar {
+  flex: 1;
+  min-width: 0;
+}
+.picker-crumbs {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 6px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: text;
+}
+.picker-crumb {
+  flex: none;
+  padding: 3px 7px;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  font-weight: 400;
+  color: var(--text);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-crumb + .picker-crumb::before {
+  content: "›";
+  margin-right: 10px;
+  margin-left: -4px;
+  color: var(--muted);
+}
+.picker-crumb:hover:not(:disabled) {
+  background: var(--picker-row-hover);
+}
+.picker-crumb.current {
+  font-weight: 600;
+}
+.picker-more {
+  color: var(--muted);
+}
+.picker-path {
+  height: 34px;
+  font: inherit;
+  user-select: text;
+}
+
+/* ---- body: the drives beside the list ---- */
+.picker-body {
+  display: flex;
+  height: var(--picker-list-height);
+}
+.picker-places {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  width: var(--picker-places-width);
+  padding: 10px 8px;
+  overflow: auto;
+  background: var(--picker-chrome);
+  border-right: 1px solid var(--border);
+}
+.picker-places-title {
+  padding: 2px 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.picker-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background: var(--picker-list-bg);
+}
+.picker-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.picker-counts {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  padding: 6px;
+  overflow: auto;
+}
+.picker-list:focus {
+  outline: none;
+}
+.loading .picker-list {
+  opacity: 0.5;
+}
+
+/* ---- rows: a folder opens on click; a file is selected on click, confirmed on double-click ---- */
+.picker-row,
+.picker-place {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  width: 100%;
+  padding: 5px 8px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+  overflow: hidden;
+}
+.picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-icon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.picker-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+.picker-close .picker-icon {
+  width: 14px;
+  height: 14px;
+}
+.picker-folder .picker-icon {
+  color: var(--picker-folder);
+}
+.picker-file .picker-icon,
+.picker-place .picker-icon {
+  color: var(--picker-file);
+}
+.picker-row:hover:not(:disabled),
+.picker-place:hover:not(:disabled) {
+  background: var(--picker-row-hover);
+}
+.picker-row:focus-visible,
+.picker-place:focus-visible,
+.picker-crumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-color: transparent;
+}
+.picker-row.selected,
+.picker-row.selected:hover,
+.picker-place.active,
+.picker-place.active:hover {
+  background: var(--picker-selected);
+  color: var(--picker-selected-text);
+}
+.picker-row.selected .picker-icon,
+.picker-place.active .picker-icon {
+  color: inherit;
+}
+.picker-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.picker-note {
+  position: absolute;
+  inset: 40px 0 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+.picker-note.error {
+  color: var(--danger);
+}
+.picker-list.empty + .picker-note {
+  display: flex;
+}
+
+/* ---- footer: what Select returns, and the buttons ---- */
+.picker-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--picker-chrome);
+  border-top: 1px solid var(--border);
+}
+.picker-selection {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* rtl: the ellipsis goes in front and the path's end shows; the bdi keeps the text ltr */
+  direction: rtl;
+  text-align: left;
+}
+.picker-selection.muted {
+  color: var(--muted);
+}
+.picker-actions {
+  display: flex;
+  gap: 8px;
+}

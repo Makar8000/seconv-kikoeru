@@ -48,6 +48,9 @@ const setValue = (f, v) => {
   } else {
     f.value = v ?? "";
   }
+  if (f.id === "rjPath") {
+    f.scrollLeft = f.scrollWidth;
+  }
 };
 let engines = {};
 let shownEngine = "";
@@ -228,7 +231,7 @@ const fill = ({ config, load, engines: engineNames, languages, seconvFound, prof
   );
   fillLanguages(languages, config);
   for (const f of inputs.filter((f) => f.tagName !== "SELECT" && !isEngine(f))) {
-    f.value = config[f.dataset.key];
+    setValue(f, config[f.dataset.key]);
   }
   for (const l of lists.filter((l) => !isEngine(l))) {
     renderList(l, config[l.dataset.list]);
@@ -354,7 +357,7 @@ globalThis.confirmQuit = async (reason) => {
 };
 // A folder dropped on the window: the host sees the drop (this page can't read paths) and sets it here
 globalThis.setQueueFolder = (folder) => {
-  $("rjPath").value = folder;
+  setValue($("rjPath"), folder);
   log("info", `Queue directory set to ${folder}`);
   save();
 };

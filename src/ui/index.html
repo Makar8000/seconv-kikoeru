@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>seconv-kikoeru</title>
     <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/picker.css">
   </head>
   <body>
     <header>
@@ -96,16 +97,19 @@
 
       <section class="card">
         <h2>Queue</h2>
-        <div class="fields">
-          <div class="field half">
+        <div class="fields queue">
+          <div class="field">
             <label for="rjPath">Queue directory</label>
-            <input id="rjPath" data-key="rjPath" autocomplete="off" spellcheck="false">
+            <div class="browse">
+              <input id="rjPath" data-key="rjPath" autocomplete="off" spellcheck="false">
+              <button type="button" id="browseQueue">Browse</button>
+            </div>
             <div class="hint-row">
               <small class="hint">Or drop a folder anywhere on the window</small>
               <small class="hint error" id="rjPathError" hidden>Folder not found</small>
             </div>
           </div>
-          <div class="field half">
+          <div class="field">
             <label for="subtitleExtensions-input">File extensions</label>
             <div class="chips" data-list="subtitleExtensions"></div>
             <div class="hint-row">
@@ -151,5 +155,6 @@
     </dialog>
 
     <script src="/app.js"></script>
+    <script src="/picker.js"></script>
   </body>
 </html>
