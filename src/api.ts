@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
 import path from "node:path";
 import {
   config,
@@ -371,6 +371,13 @@ const listen = async () => {
 };
 
 export const server = await listen();
+
+// The default profiles' queue directory
+try {
+  mkdirSync("queue", { recursive: true });
+} catch (e) {
+  logger.warn(`Failed to create the queue folder. ${e}`);
+}
 
 if (PATH_ARG) {
   updateConfig({ ...config, rjPath: queueFolderOf(PATH_ARG) });

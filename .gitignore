@@ -11,8 +11,7 @@ release
 settings.json
 profiles/
 lib/
-queue/**
-!queue/**/.gitkeep
+queue/
 .webview2/
 
 # seconv error log, app crash log

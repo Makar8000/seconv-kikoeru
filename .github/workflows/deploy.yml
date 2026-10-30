@@ -39,8 +39,6 @@ jobs:
         run: |
           mkdir release
           mkdir artifact
-          mkdir artifact/queue
-          New-Item artifact\queue\.place-files-to-translate-here
           Copy-Item -Path bin\seconv-kikoeru\* -Destination artifact -Recurse
           Compress-Archive -Path artifact\* -DestinationPath release\seconv-kikoeru.zip -Force
 
