@@ -3,6 +3,7 @@ import path from "node:path";
 import { config, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
 import { translateWithSeConv } from "../seconv/convert.ts";
+import { existingServerModel } from "../seconv/llamacpp.ts";
 import { BACKUPS_FOLDER, METADATA_FOLDER } from "./fileDiscovery.ts";
 import { loadManifest, removeByFile, saveManifest, type TranslatedEntry, type TranslationErrorEntry, upsertByFile } from "./manifest.ts";
 
@@ -104,7 +105,7 @@ export const translateFiles = async (
         file: manifestFile,
         timestamp,
         translateEngine: config.translateEngine,
-        translateModel: engineConfig().model,
+        translateModel: existingServerModel() ?? engineConfig().model,
         translateFrom: config.translateFrom,
         translateTo: config.translateTo,
         additionalArgs: engineConfig().additionalArgs,
@@ -116,7 +117,7 @@ export const translateFiles = async (
         file: manifestFile,
         timestamp,
         translateEngine: config.translateEngine,
-        translateModel: engineConfig().model,
+        translateModel: existingServerModel() ?? engineConfig().model,
         translateFrom: config.translateFrom,
         translateTo: config.translateTo,
         additionalArgs: engineConfig().additionalArgs,

@@ -38,11 +38,15 @@ export const llamaCppUrl = () => {
 
 /** The llama-server this app started for the current run. */
 let server: ChildProcess | undefined;
+/** The model file of the already-running server the current run uses; undefined when this app started the server. */
+let servedFile: string | undefined;
+export const existingServerModel = () => servedFile;
 
 /** Stops the llama-server this app started, if one is running. */
 export const stopLlamaServer = () => {
   server?.kill();
   server = undefined;
+  servedFile = undefined;
 };
 
 /** What answers at `origin`: a llama.cpp server, something else, or nothing. */
@@ -221,6 +225,7 @@ export const openLlamaCpp = async (signal: AbortSignal, onPhase: (phase: string)
     await waitUntilReady(url.origin, signal);
     // A llama-server this app started lives on when the app is force-killed, maybe with another profile's model
     const served = await servedModel(url.origin);
+    servedFile = served ? path.basename(served) : undefined;
     const model = engineConfig().model;
     const fits = !served || !model || isModel(served, model);
     const note = fits ? "" : ` That isn't the profile's model (${model}); stop that server to have one started with it.`;
