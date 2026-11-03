@@ -72,7 +72,7 @@ const read = () => ({
 
 // The Advanced section is closed by default, so its summary says when there are arguments inside
 const showAdvancedSummary = () => {
-  const n = chips(document.querySelector('[data-list="additionalArgs"]')).length;
+  const n = document.querySelectorAll(".advanced .chip").length;
   let text = "Advanced";
   if (n) {
     text = `Advanced · ${n} argument${n === 1 ? "" : "s"}`;
@@ -102,7 +102,7 @@ const save = () => {
 // ---- chip lists (additional args, file extensions) ----
 const addChip = (l, value) => {
   value = value.trim();
-  if (!value || [...l.querySelectorAll(".chip")].some((c) => c.dataset.value === value)) {
+  if (!value) {
     return false;
   }
   const chip = document.createElement("span");
@@ -147,7 +147,8 @@ const renderList = (l, values) => {
   input.addEventListener("blur", commit);
   l.append(input);
   l.addEventListener("click", (e) => e.target === l && input.focus());
-  for (const v of values) {
+  // Only llamacpp has server arguments
+  for (const v of values ?? []) {
     addChip(l, v);
   }
 };

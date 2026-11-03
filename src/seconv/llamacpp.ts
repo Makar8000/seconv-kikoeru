@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import path from "node:path";
 import { config, type EngineConfig, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
-import { run } from "../utils/process.ts";
+import { run, toArgs } from "../utils/process.ts";
 import { installLlamaCpp } from "./installer.ts";
 import {
   findLlamaServer,
@@ -175,7 +175,7 @@ const startServer = async (model: string, port: number, signal: AbortSignal) => 
   // openLlamaCpp installed llama.cpp if it was missing
   const child = spawn(
     findLlamaServer() ?? LLAMACPP_SERVER,
-    [...args, "--cache-reuse", "256", ...familyFlags(model), ...samplingFlags(engineConfig())],
+    [...args, "--cache-reuse", "256", ...familyFlags(model), ...samplingFlags(engineConfig()), ...toArgs(engineConfig().serverArgs ?? [])],
     {
       windowsHide: true,
       cwd: LLAMACPP_BIN,
@@ -230,7 +230,7 @@ export const openLlamaCpp = async (signal: AbortSignal, onPhase: (phase: string)
     const fits = !served || !model || isModel(served, model);
     const note = fits ? "" : ` That isn't the profile's model (${model}); stop that server to have one started with it.`;
     logger[fits ? "info" : "warn"](
-      `Using the llama.cpp server running at ${url.origin} as it is, with ${served ? path.basename(served) : "its model"} and its own sampling settings.${note}`,
+      `Using the llama.cpp server running at ${url.origin} as it is, with ${served ? path.basename(served) : "its model"} and its own sampling settings and arguments.${note}`,
     );
     return;
   }

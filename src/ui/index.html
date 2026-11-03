@@ -86,8 +86,13 @@
             <label for="repeatPenalty">Repeat penalty</label>
             <input id="repeatPenalty" type="number" min="0" step="0.05" data-key="repeatPenalty" autocomplete="off" data-engine>
           </div>
+          <div class="field full" data-engines="llamacpp">
+            <label for="serverArgs-input">Additional arguments (llama-server)</label>
+            <div class="chips" data-list="serverArgs" data-engine></div>
+            <small class="hint">Type an argument such as -c 16384 and press Enter. Only used when the app starts the server</small>
+          </div>
           <div class="field full">
-            <label for="additionalArgs-input">Additional arguments</label>
+            <label for="additionalArgs-input">Additional arguments (seconv)</label>
             <div class="chips" data-list="additionalArgs" data-engine></div>
             <small class="hint">Type an argument such as --settings:my-settings.json and press Enter</small>
           </div>

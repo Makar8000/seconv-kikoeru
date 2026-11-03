@@ -14,6 +14,7 @@
       "topP": 0.6,
       "topK": 20,
       "repeatPenalty": 1.05,
+      "serverArgs": [],
       "additionalArgs": []
     },
     "openai-compatible": {

@@ -38,7 +38,8 @@ export type Config = {
  * - `prompt`: only for the LLM engines (llamacpp, openai-compatible); if empty, seconv's default
  * - `temperature`, `topP`, `topK`, `repeatPenalty`: llamacpp only, the sampling defaults of the llama-server this app
  *   starts (seconv sends none of its own when it's given a URL); a server that was already running keeps its own
- * - `additionalArgs`: extra args passed straight to seconv
+ * - `serverArgs`: llamacpp only, extra args for the llama-server this app starts, after its own (see `toArgs`)
+ * - `additionalArgs`: extra args for seconv (see `toArgs`)
  */
 export type EngineConfig = {
   model: string;
@@ -50,6 +51,7 @@ export type EngineConfig = {
   topP?: number;
   topK?: number;
   repeatPenalty?: number;
+  serverArgs?: string[];
   additionalArgs: string[];
 };
 
@@ -117,11 +119,12 @@ const normalizeEngine = (raw: unknown, def?: EngineConfig): EngineConfig => {
     useCustomPrompt: bool(input.useCustomPrompt) ?? def?.useCustomPrompt ?? false,
     // One line: seconv sends a line break in the prompt as a literal <br />
     prompt: str(input.prompt)?.replace(/\s*\r?\n\s*/g, " ") ?? def?.prompt ?? "",
-    // Only engines with default sampling (llamacpp) get any; for the rest these stay undefined and aren't saved
+    // Only engines whose defaults have these (llamacpp) get any; for the rest they stay undefined and aren't saved
     temperature: num(input.temperature) ?? def?.temperature,
     topP: num(input.topP) ?? def?.topP,
     topK: num(input.topK, true) ?? def?.topK,
     repeatPenalty: num(input.repeatPenalty) ?? def?.repeatPenalty,
+    serverArgs: def?.serverArgs ? list(input.serverArgs) : undefined,
     additionalArgs: list(input.additionalArgs),
   };
 };

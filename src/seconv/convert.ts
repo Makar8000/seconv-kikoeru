@@ -1,7 +1,7 @@
 import path from "node:path";
 import { config, engineConfig } from "../config/index.ts";
 import { logger } from "../logger.ts";
-import { run } from "../utils/process.ts";
+import { run, toArgs } from "../utils/process.ts";
 import { llamaCppUrl, usesLlamaCpp } from "./llamacpp.ts";
 import { findSeconv, SECONV_NOT_FOUND } from "./locate.ts";
 
@@ -110,7 +110,7 @@ export const translateWithSeConv = async (filePath: string, format: string, abor
   }
 
   if (engine.additionalArgs.length) {
-    args.push(...engine.additionalArgs);
+    args.push(...toArgs(engine.additionalArgs));
   }
 
   logger.info(`Translating ${path.relative(config.rjPath, absoluteFilePath)} (${format})...`);

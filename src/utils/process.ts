@@ -3,6 +3,16 @@ import { execFile } from "node:child_process";
 export type RunResult = { code: number | null; signal: string | null; stdout: string; stderr: string };
 export type RunOptions = { signal?: AbortSignal; cwd?: string; env?: NodeJS.ProcessEnv };
 
+/** Arguments typed in the page, one per entry. "-c 16384" is a flag and its value; anything else is one argument. */
+export const toArgs = (entries: string[]) =>
+  entries.flatMap((entry) => {
+    const flag = /^(-[^\s:=]+)\s+(.+)$/.exec(entry);
+    if (flag) {
+      return [flag[1], flag[2]];
+    }
+    return [entry];
+  });
+
 /**
  * Runs `exe` to completion and collects its output. A non-zero exit still resolves (the caller reads `code`); it
  * rejects when the program can't be started, or when `signal` aborts (the program is killed). `windowsHide` keeps
